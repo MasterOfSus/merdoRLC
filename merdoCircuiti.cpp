@@ -8,9 +8,14 @@
 // Measured values
 
 Double_t VPP {5.};
-Double_t R {1.4993E3};
+Double_t R {1.499E3};
+Double_t RErr {2};
 Double_t L {10.11E-3};
+Double_t LErr {10E-5};
+Double_t LR {38.38};
+Double_t LRErr {0.03};
 Double_t C {21.91E-9};
+Double_t CErr {22E-11};
 
 // Data processing functions
 
