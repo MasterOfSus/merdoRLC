@@ -8,30 +8,25 @@
 
 // Data processing functions
 
-void correctPhiFreqResp(TGraphErrors* phiFreqResp, Double_t deltaT) {
+
+
+void correctPhiFreqResp(TGraphErrors* phiFreqResp, const TF1* phaseOffsetF) {
 	for (Int_t i {0}; i < phiFreqResp->GetN(); ++i) {
-		phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), 2*M_PI * deltaT / phiFreqResp->GetPointX(i));
+		phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), phiFreqResp->GetPointY(i) - phaseOffsetF->Eval(phiFreqResp->GetPointX(i)));
 		// need to add error on changed y value
+		if (phiFreqResp->GetPointY(i) < -M_PI/2.) {
+			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
+		}
 	}
 }
+
 void correctSins(TGraphErrors* sinusoid, Double_t deltaT, Int_t nChannel) {
 	for (Int_t i {0}; i < sinusoid->GetN(); ++i) {
 		sinusoid->SetPointX(i, sinusoid->GetPointX(i) + deltaT * nChannel);
 	}
 }
 
-// These two provide the error, but need to be fitted to return it correctly
-Double_t omegaErr(Double_t omega, Double_t* pars) {
-	return pars[0]*omega + pars[1];
-}
-
-Double_t amplitudeErr(Double_t omega, Double_t* pars) {
-	return pars[0]*omega + pars[1];
-}
-
-Double_t phiErr(Double_t omega, Double_t* pars) {
-	return pars[0]*omega + pars[1];
-}
+// This one provides the error, but need fitted lines to return it correctly
 
 void addXYErr(TGraphErrors* graph, TF1* xErrF, TF1* yErrF) {
 	for (Int_t i {0}; i < graph->GetN(); ++i) {
@@ -41,6 +36,8 @@ void addXYErr(TGraphErrors* graph, TF1* xErrF, TF1* yErrF) {
 		);
 	}
 }
+
+// transform two sinusoids into a lissajous shape
 
 TGraphErrors* correlate(TGraphErrors* sin1, TGraphErrors* sin2) {
 	return new TGraphErrors(sin1->GetN(), sin1->GetY(), sin2->GetY(), sin1->GetEX(), sin2->GetEY());
@@ -256,63 +253,35 @@ void analyze(std::string dataDir) {
 
 	// acquire amplitude errors graphs
 	
-	std::vector<TGraphErrors*> ampErrsCh0 {};
-	std::vector<TGraphErrors*> ampErrsCh1 {};
-	std::vector<TGraphErrors*> ampErrsCh2 {};
-	std::vector<TGraphErrors*> ampErrsCh3 {};
-
-	std::vector<TGraphErrors*> ampErrsCh[4] {
-		ampErrsCh0, ampErrsCh1, ampErrsCh2, ampErrsCh3
-	};
-
-	Int_t i {1};
+	TGraphErrors* ampErrsCh[4] {};
 
 	for (int j {0}; j < 3; ++j) {
-		i = 1;
 		while (
-			std::ifstream(dataDir + fileNames[6] + std::to_string(j) + '-' + std::to_string(i) + ".txt").good()
+			std::ifstream(dataDir + fileNames[6] + std::to_string(j) + ".txt").good()
 		) {
-			ampErrsCh[j].emplace_back(new TGraphErrors(
-				(dataDir + fileNames[6] + std::to_string(j) + '-' + std::to_string(i) + ".txt" ).c_str()
-				)
+			ampErrsCh[j] = new TGraphErrors(
+				(dataDir + fileNames[6] + std::to_string(j) + ".txt" ).c_str()
 			);
-			++i;
 		}
 	}
-
-	Int_t nAmpErrs = i;
 
 	// acquire phase errors graphs
 
-	std::vector<TGraphErrors*> phiErrsCh0 {};
-	std::vector<TGraphErrors*> phiErrsCh1 {};
-	std::vector<TGraphErrors*> phiErrsCh2 {};
-	std::vector<TGraphErrors*> phiErrsCh3 {};
-
-	std::vector<TGraphErrors*> phiErrsCh[4] {
-		phiErrsCh0, phiErrsCh1, phiErrsCh2, phiErrsCh3
-	};
+	TGraphErrors* phiErrsCh[4] {};
 
 	for (int j {0}; j < 4; ++j) {
-		i = 1;
 		while (
-			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + '-' + std::to_string(i) + ".txt").good()
+			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
 		) {
-			phiErrsCh[j].emplace_back(new TGraphErrors(
-				(dataDir + fileNames[7] + std::to_string(j) + '-' + std::to_string(i) + ".txt" ).c_str()
-				)
+			phiErrsCh[j] = new TGraphErrors(
+				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
 			);
-			++i;
 		}
 	}
 
-	Int_t nPhiErrs {i};
-
-	assert(nPhiErrs == nAmpErrs);
-
 	// acquire sinusoids graphs
 
-	std::vector<TGraphErrors*> sineGen {}
+	std::vector<TGraphErrors*> sineGen {};
 	std::vector<TGraphErrors*> sineR {};
 	std::vector<TGraphErrors*> sineL {};
 	std::vector<TGraphErrors*> sineC {};
@@ -320,6 +289,8 @@ void analyze(std::string dataDir) {
 	std::vector<TGraphErrors*> sines[4] {
 		sineGen, sineR, sineL, sineC
 	};
+
+	Int_t i {0};
 
 	for (int j {0}; j < 4; ++j) {
 		i = 1;
