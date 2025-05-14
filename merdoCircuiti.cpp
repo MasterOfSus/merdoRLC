@@ -3,16 +3,21 @@
 #include "cmath"
 #include "TFile.h"
 #include <RtypesCore.h>
-#include <system_error>
 #include <fstream>
 
+// Measured values
+
+Double_t VPP {5.};
+Double_t R {1.4993E3};
+Double_t L {10.11E-3};
+Double_t C {21.91E-9};
+
 // Data processing functions
-
-
 
 void correctPhiFreqResp(TGraphErrors* phiFreqResp, const TF1* phaseOffsetF) {
 	for (Int_t i {0}; i < phiFreqResp->GetN(); ++i) {
 		phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), phiFreqResp->GetPointY(i) - phaseOffsetF->Eval(phiFreqResp->GetPointX(i)));
+		phiFreqResp->SetPointError(i, phiFreqResp->GetErrorX(i), phaseOffsetF-);
 		// need to add error on changed y value
 		if (phiFreqResp->GetPointY(i) < -M_PI/2.) {
 			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
@@ -28,10 +33,11 @@ void correctSins(TGraphErrors* sinusoid, Double_t deltaT, Int_t nChannel) {
 
 // This one provides the error, but need fitted lines to return it correctly
 
-void addXYErr(TGraphErrors* graph, TF1* xErrF, TF1* yErrF) {
+void addYErr(TGraphErrors* graph, TF1* yErrF) {
 	for (Int_t i {0}; i < graph->GetN(); ++i) {
 		graph->SetPointError(
-			xErrF->Eval(graph->GetPointX(i)),
+			// xErrF->Eval(graph->GetPointX(i))
+			0., // half resolution?
 			yErrF->Eval(graph->GetPointX(i))
 		);
 	}
@@ -265,6 +271,7 @@ void analyze(std::string dataDir) {
 		}
 	}
 
+	/*
 	// acquire phase errors graphs
 
 	TGraphErrors* phiErrsCh[4] {};
@@ -278,6 +285,36 @@ void analyze(std::string dataDir) {
 			);
 		}
 	}
+	*/
+
+	// acquire phase errors graphs
+
+	TGraphErrors* phiErrsCh[4] {};
+
+	for (int j {0}; j < 4; ++j) {
+		while (
+			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
+		) {
+			phiErrsCh[j] = new TGraphErrors(
+				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
+			);
+		}
+	}
+
+	// acquire phase offsets graphs
+	TGraphErrors* phiOffsCh[4] {};
+
+	for (int j {0}; j < 4; ++j) {
+		while (
+			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
+		) {
+			phiOffsCh[j] = new TGraphErrors(
+				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str(),
+				"%lg%*lg%lg"
+			);
+		}
+	}
+
 
 	// acquire sinusoids graphs
 
@@ -306,12 +343,22 @@ void analyze(std::string dataDir) {
 	}
 
 	// Start data prep
-	
-	Double_t AITimer {1E-6};
 
-	correctPhiFreqResp(phaseFreqRespR, AITimer);
-	correctPhiFreqResp(phaseFreqRespL, AITimer);
-	correctPhiFreqResp(phaseFreqRespC, AITimer);
+	// Phase offset functions Fitting
+	
+	TF1* phiFreqRespCorrectorCh[4] {};
+	
+	i = 0;
+	for (; i < 4; ++i) {
+		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
+		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
+	}
+
+	// correcting phase freq resp graph for syst phase offset
+	
+	correctPhiFreqResp(phaseFreqRespR, phiFreqRespCorrectorCh[1]);
+	correctPhiFreqResp(phaseFreqRespL, phiFreqRespCorrectorCh[2]);
+	correctPhiFreqResp(phaseFreqRespC, phiFreqRespCorrectorCh[3]);
 
 	/*
 	prob not gonna do it, hopefully negligible
@@ -324,54 +371,26 @@ void analyze(std::string dataDir) {
 	}
 	*/
 
+	// fit stdDev functions
 
-	std::vector<TF1*> omegaErrFs {};
-	std::vector<TF1*> amplitudeErrFs {};
-	std::vector<TF1*> phaseErrFs {};
-
-	i = 0;
-	for (; i < 4; ++i) {
-		omegaErrFs.push_back(new TF1(("omegaErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6));
-		amplitudeErrFs.push_back(new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6));
-		phaseErrFs.push_back(new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6));
-	}
-
-	// use error graphs to get graphs with error(omega)
+	TF1* amplitudeErrFCh[4] {};
+	TF1* phaseErrFCh[4] {};
 
 	i = 0;
 	for (; i < 4; ++i) {
-		TGraphErrors* omegaSigma = new TGraphErrors(nAmpErrs);
-		TGraphErrors* ampSigma = new TGraphErrors(nAmpErrs);
-		TGraphErrors* phaseSigma = new TGraphErrors(nPhiErrs);
-		for (Int_t j {0}; j < nAmpErrs; ++j) {
-			omegaSigma->SetPoint(j,
-				TMath::Mean(ampErrsCh[i][j]->GetX(), ampErrsCh[i][j]->GetX() + ampErrsCh[i][j]->GetN()),
-				TMath::StdDev(ampErrsCh[i][j]->GetX(), ampErrsCh[i][j]->GetX() + ampErrsCh[i][j]->GetN())
-			);
-			ampSigma->SetPoint(j,
-				TMath::Mean(ampErrsCh[i][j]->GetX(), ampErrsCh[i][j]->GetX() + ampErrsCh[i][j]->GetN()),
-				TMath::StdDev(ampErrsCh[i][j]->GetY(), ampErrsCh[i][j]->GetY() + ampErrsCh[i][j]->GetN())
-			);
-		}
-		for (Int_t j {0}; j < nPhiErrs; ++j) {
-			phaseSigma->SetPoint(j,
-				TMath::Mean(phiErrsCh[i][j]->GetX(), phiErrsCh[i][j]->GetX() + phiErrsCh[i][j]->GetN()),
-				TMath::StdDev(phiErrsCh[i][j]->GetX(), phiErrsCh[i][j]->GetX() + phiErrsCh[i][j]->GetN())
-			);
-		}
-		omegaSigma->Fit(omegaErrFs[i]);
-		ampSigma->Fit(amplitudeErrFs[i]);
-		phaseSigma->Fit(phaseErrFs[i]);
+		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
+		ampErrsCh[i]->Fit(amplitudeErrFCh[i]);
+		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
+		phiErrsCh[i]->Fit(phaseErrFCh[i]);
 	}
 
+	addYErr(ampFreqRespR, amplitudeErrFCh[1]);
+	addYErr(ampFreqRespL, amplitudeErrFCh[2]);
+	addYErr(ampFreqRespC, amplitudeErrFCh[3]);
 
-	addXYErr(ampFreqRespR, omegaErrFs[1], amplitudeErrFs[1]);
-	addXYErr(ampFreqRespL, omegaErrFs[2], amplitudeErrFs[2]);
-	addXYErr(ampFreqRespC, omegaErrFs[3], amplitudeErrFs[3]);
-
-	addXYErr(phaseFreqRespR, omegaErrFs[1], phaseErrFs[1]);
-	addXYErr(phaseFreqRespL, omegaErrFs[2], phaseErrFs[2]);
-	addXYErr(phaseFreqRespC, omegaErrFs[3], phaseErrFs[3]);
+	addYErr(phaseFreqRespR, phaseErrFCh[1]);
+	addYErr(phaseFreqRespL, phaseErrFCh[2]);
+	addYErr(phaseFreqRespC, phaseErrFCh[3]);
 
 	// coexpress sinusoids
 	
