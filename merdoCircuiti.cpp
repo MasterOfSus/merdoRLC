@@ -9,11 +9,11 @@
 
 Double_t VPP {5.};
 Double_t R {1.499E3};
-Double_t RErr {2};
+Double_t RErr {2.};
 Double_t L {10.11E-3};
 Double_t LErr {10E-5};
 Double_t LR {38.38};
-Double_t LRErr {0.03};
+Double_t LRErr {3E-2};
 Double_t C {21.91E-9};
 Double_t CErr {22E-11};
 
@@ -21,12 +21,17 @@ Double_t CErr {22E-11};
 
 void correctPhiFreqResp(TGraphErrors* phiFreqResp, const TF1* phaseOffsetF) {
 	for (Int_t i {0}; i < phiFreqResp->GetN(); ++i) {
-		phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), phiFreqResp->GetPointY(i) - phaseOffsetF->Eval(phiFreqResp->GetPointX(i)));
-		phiFreqResp->SetPointError(i, phiFreqResp->GetErrorX(i), phaseOffsetF-);
-		// need to add error on changed y value
 		if (phiFreqResp->GetPointY(i) < -M_PI/2.) {
 			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
 		}
+	phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), phiFreqResp->GetPointY(i) - phaseOffsetF->Eval(phiFreqResp->GetPointX(i)));
+		phiFreqResp->SetPointError(i, phiFreqResp->GetErrorX(i), 
+			sqrt(
+				pow((1 - phaseOffsetF->GetParameter(1))*phiFreqResp->GetErrorY(i), 2.) +
+				pow(phiFreqResp->GetPointY(i)*phaseOffsetF->GetParError(1), 2.) + 
+				pow(phaseOffsetF->GetParameter(0), 2.)
+			)
+		);
 	}
 }
 
@@ -119,10 +124,17 @@ Double_t thetaFromPt(Double_t x, Double_t y) {
 }
 
 Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr) {
-	Double_t r { rFromPt(x, y) };
+	// Double_t r { rFromPt(x, y) };
+
+	/*
 	Double_t cosTheta { x / r };
 	Double_t sinTheta { y / r };
 	Double_t tanTheta { y / x };
+	*/
+
+	return sqrt(y*y*xErr*xErr + x*x*yErr*yErr) / pow(rFromPt(x, y), 2.);
+
+	/*
 
 	bool useCos { false };
 	bool useSin { false };
@@ -156,9 +168,8 @@ Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr) {
 		Double_t deltaTan { std::abs(y)/(x*x) * xErr + yErr / std::abs(x) };
 		return deltaTan/(1 + tanTheta*tanTheta);
 	}
-	
-	throw std::runtime_error("Dude wtf");
 
+	*/
 }
 
 TGraphErrors* polarize(TGraphErrors* lissajous) {
@@ -239,6 +250,8 @@ Double_t polarLissajous(Double_t* theta, Double_t* pars) {
 
 void analyze(std::string dataDir) {
 	
+	TFile* results = new TFile("analyzedData.ROOT", "RECREATE");
+
 	std::vector<std::string> fileNames {
 		"ampFreqRespR.txt",
 		"ampFreqRespL.txt",
@@ -273,6 +286,7 @@ void analyze(std::string dataDir) {
 			ampErrsCh[j] = new TGraphErrors(
 				(dataDir + fileNames[6] + std::to_string(j) + ".txt" ).c_str()
 			);
+			ampErrsCh[j]->Write();
 		}
 	}
 
@@ -303,6 +317,7 @@ void analyze(std::string dataDir) {
 			phiErrsCh[j] = new TGraphErrors(
 				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
 			);
+			phiErrsCh[j]->Write();
 		}
 	}
 
@@ -317,9 +332,9 @@ void analyze(std::string dataDir) {
 				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str(),
 				"%lg%*lg%lg"
 			);
+			phiOffsCh[j]->Write();
 		}
 	}
-
 
 	// acquire sinusoids graphs
 
@@ -357,6 +372,7 @@ void analyze(std::string dataDir) {
 	for (; i < 4; ++i) {
 		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
 		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
+		phiFreqRespCorrectorCh[i]->Write();
 	}
 
 	// correcting phase freq resp graph for syst phase offset
@@ -385,27 +401,41 @@ void analyze(std::string dataDir) {
 	for (; i < 4; ++i) {
 		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
 		ampErrsCh[i]->Fit(amplitudeErrFCh[i]);
+		amplitudeErrFCh[i]->Write();
 		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
 		phiErrsCh[i]->Fit(phaseErrFCh[i]);
+		phaseErrFCh[i]->Write();
 	}
 
 	addYErr(ampFreqRespR, amplitudeErrFCh[1]);
+	ampFreqRespR->Write();
 	addYErr(ampFreqRespL, amplitudeErrFCh[2]);
+	ampFreqRespL->Write();
 	addYErr(ampFreqRespC, amplitudeErrFCh[3]);
+	ampFreqRespC->Write();
 
 	addYErr(phaseFreqRespR, phaseErrFCh[1]);
+	phaseFreqRespR->Write();
 	addYErr(phaseFreqRespL, phaseErrFCh[2]);
+	phaseFreqRespL->Write();
 	addYErr(phaseFreqRespC, phaseErrFCh[3]);
+	phaseFreqRespC->Write();
 
 	// coexpress sinusoids
 	
 	TGraphErrors* lissajousGenR1 = correlate(sines[0][0], sines[1][0]);
+	lissajousGenR1->Write();
 	TGraphErrors* lissajousGenR2 = correlate(sines[0][1], sines[1][1]);
+	lissajousGenR2->Write();
 	TGraphErrors* lissajousGenR3 = correlate(sines[0][2], sines[1][2]);
+	lissajousGenR3->Write();
 
 	TGraphErrors* polarLissajousGenR1 = polarize(lissajousGenR1);
+	polarLissajousGenR1->Write();
 	TGraphErrors* polarLissajousGenR2 = polarize(lissajousGenR2);
+	polarLissajousGenR2->Write();
 	TGraphErrors* polarLissajousGenR3 = polarize(lissajousGenR2);
+	polarLissajousGenR3->Write();
 
 	// fit functions, need to initialize values
 
@@ -424,45 +454,28 @@ void analyze(std::string dataDir) {
 	// fitting
 	
 	ampFreqRespR->Fit(ampFreqRespRF);
+	ampFreqRespRF->Write();
 	ampFreqRespL->Fit(ampFreqRespLF);
+	ampFreqRespLF->Write();
 	ampFreqRespC->Fit(ampFreqRespCF);
+	ampFreqRespCF->Write();
 
 	phaseFreqRespR->Fit(phaseFreqRespRF);
+	phaseFreqRespRF->Write();
 	phaseFreqRespL->Fit(phaseFreqRespLF);
+	phaseFreqRespLF->Write();
 	phaseFreqRespC->Fit(phaseFreqRespCF);
+	phaseFreqRespCF->Write();
 
 	polarLissajousGenR1->Fit(polarLissajousGenR1F);
+	polarLissajousGenR1F->Write();
 	polarLissajousGenR2->Fit(polarLissajousGenR2F);
+	polarLissajousGenR2F->Write();
 	polarLissajousGenR3->Fit(polarLissajousGenR3F);
+	polarLissajousGenR2F->Write();
 
 	// space for cosmetic editing
 
 	// saving EVERYTHING to TFile
-	
-	TFile* results = new TFile("analyzedData.ROOT", "RECREATE");
-
-	ampFreqRespR->Write();
-	ampFreqRespRF->Write();
-	ampFreqRespL->Write();
-	ampFreqRespLF->Write();
-	ampFreqRespC->Write();
-	ampFreqRespCF->Write();
-
-	phaseFreqRespR->Write();
-	ampFreqRespRF->Write();
-	phaseFreqRespL->Write();
-	ampFreqRespLF->Write();
-	phaseFreqRespC->Write();
-	ampFreqRespCF->Write();
-
-	lissajousGenR1->Write();
-	polarLissajousGenR1->Write();
-	polarLissajousGenR1F->Write();
-	lissajousGenR2->Write();
-	polarLissajousGenR2->Write();
-	polarLissajousGenR2F->Write();
-	lissajousGenR3->Write();
-	polarLissajousGenR3->Write();
-	polarLissajousGenR3F->Write();
 
 }
