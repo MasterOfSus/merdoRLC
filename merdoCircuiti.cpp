@@ -3,6 +3,7 @@
 #include "cmath"
 #include "TFile.h"
 #include <RtypesCore.h>
+#include <TMath.h>
 #include <fstream>
 
 // Measured values
@@ -46,13 +47,22 @@ void correctSins(TGraphErrors* sinusoid, Double_t deltaT, Int_t nChannel) {
 void addYErr(TGraphErrors* graph, TF1* yErrF) {
 	for (Int_t i {0}; i < graph->GetN(); ++i) {
 		graph->SetPointError(
-			// xErrF->Eval(graph->GetPointX(i))
+			i,
 			0., // half resolution?
 			yErrF->Eval(graph->GetPointX(i))
 		);
 	}
 }
 
+void addXYErr(TGraphErrors* graph, Double_t xErr, Double_t yErr) {
+	for (Int_t i {0}; i < graph->GetN(); ++i) {
+		graph->SetPointError(
+			i,
+			xErr, // half resolution?
+			yErr
+		);
+	}
+}
 // Transform two sinusoids into a lissajous shape
 
 TGraphErrors* correlate(TGraphErrors* sin1, TGraphErrors* sin2) {
@@ -123,7 +133,7 @@ Double_t thetaFromPt(Double_t x, Double_t y) {
 
 }
 
-Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr) {
+Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr, Double_t cov) {
 	// Double_t r { rFromPt(x, y) };
 
 	/*
@@ -132,7 +142,7 @@ Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr) {
 	Double_t tanTheta { y / x };
 	*/
 
-	return sqrt(y*y*xErr*xErr + x*x*yErr*yErr) / pow(rFromPt(x, y), 2.);
+	return sqrt(y*y*xErr*xErr + x*x*yErr*yErr + x*y*cov) / pow(rFromPt(x, y), 2.);
 
 	/*
 
@@ -172,7 +182,7 @@ Double_t thetaErr(Double_t x, Double_t y, Double_t xErr, Double_t yErr) {
 	*/
 }
 
-TGraphErrors* polarize(TGraphErrors* lissajous) {
+TGraphErrors* polarize(TGraphErrors* lissajous, Double_t cov) {
 	TGraphErrors* polarized = new TGraphErrors(lissajous->GetN());
 	for (int i {0}; i < lissajous->GetN(); ++i) {
 		polarized->SetPoint(i,
@@ -181,15 +191,15 @@ TGraphErrors* polarize(TGraphErrors* lissajous) {
 		);
 		polarized->SetPointError(i,
 			rErr(lissajous->GetPointX(i), lissajous->GetPointY(i), lissajous->GetErrorX(i), lissajous->GetErrorY(i)),
-			thetaErr(lissajous->GetPointX(i), lissajous->GetPointY(i), lissajous->GetErrorX(i), lissajous->GetErrorY(i))
-		);
+			thetaErr(lissajous->GetPointX(i), lissajous->GetPointY(i),
+							 lissajous->GetErrorX(i), lissajous->GetErrorY(i), cov));
 	}
 	return polarized;
 }
 
 // Fitting functions
 
-Double_t amplitudeFreqRespR(Double_t omega, Double_t* pars) {
+Double_t amplitudeFreqRespR(Double_t* omega, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
@@ -197,37 +207,37 @@ Double_t amplitudeFreqRespR(Double_t omega, Double_t* pars) {
 	return pars[0]*pars[1] /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
+			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
 		);
 }
 
-Double_t amplitudeFreqRespL(Double_t omega, Double_t* pars) {
+Double_t amplitudeFreqRespL(Double_t* omega, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
 	// [3] is C
-	return omega*pars[0]*pars[2] /
+	return *omega*pars[0]*pars[2] /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
+			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
 		);
 }
 
-Double_t amplitudeFreqRespC(Double_t omega, Double_t* pars) {
+Double_t amplitudeFreqRespC(Double_t *omega, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
 	// [3] is C
 	return pars[0] /
-		(omega*pars[3]) /
+		(*omega*pars[3]) /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
+			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
 		);
 }
 
-Double_t phaseFreqResp(Double_t omega, Double_t* pars) {
-	return pars[0] + atan( (1 - omega*omega*pars[2]*pars[3]) / (omega*pars[1]*pars[3]) );
+Double_t phaseFreqResp(Double_t* omega, Double_t* pars) {
+	return pars[0] + atan( (1 - *omega**omega*pars[2]*pars[3]) / (*omega*pars[1]*pars[3]) );
 }
 
 Double_t polarLissajous(Double_t* theta, Double_t* pars) {
@@ -249,6 +259,8 @@ Double_t polarLissajous(Double_t* theta, Double_t* pars) {
 // Data processor
 
 void analyze(std::string dataDir) {
+
+	std::cout << "Started analyzing data.\n";
 	
 	TFile* results = new TFile("analyzedData.ROOT", "RECREATE");
 
@@ -264,8 +276,12 @@ void analyze(std::string dataDir) {
 		"sineGen",
 		"sineR",
 		"sineL",
-		"sineC"
+		"sineC",
+		"squareWave1Ch",
+		"squareWave2Ch"
 	};
+
+	std::cout << "Started acquiring graphs.\n";
 
 	TGraphErrors* ampFreqRespR = new TGraphErrors((dataDir + fileNames[0]).c_str());
 	TGraphErrors* ampFreqRespL = new TGraphErrors((dataDir + fileNames[1]).c_str());
@@ -279,8 +295,8 @@ void analyze(std::string dataDir) {
 	
 	TGraphErrors* ampErrsCh[4] {};
 
-	for (int j {0}; j < 3; ++j) {
-		while (
+	for (int j {0}; j < 4; ++j) {
+		if (
 			std::ifstream(dataDir + fileNames[6] + std::to_string(j) + ".txt").good()
 		) {
 			ampErrsCh[j] = new TGraphErrors(
@@ -311,7 +327,7 @@ void analyze(std::string dataDir) {
 	TGraphErrors* phiErrsCh[4] {};
 
 	for (int j {0}; j < 4; ++j) {
-		while (
+		if (
 			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
 		) {
 			phiErrsCh[j] = new TGraphErrors(
@@ -325,7 +341,7 @@ void analyze(std::string dataDir) {
 	TGraphErrors* phiOffsCh[4] {};
 
 	for (int j {0}; j < 4; ++j) {
-		while (
+		if (
 			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
 		) {
 			phiOffsCh[j] = new TGraphErrors(
@@ -362,7 +378,37 @@ void analyze(std::string dataDir) {
 		}	
 	}
 
+	// acquire square waves graphs
+	
+	TGraphErrors* squareWave1Ch[4] {};
+	TGraphErrors* squareWave2Ch[4] {};
+
+	i = 0;
+
+	for (; i < 4; ++i) {
+		squareWave1Ch[i] = new TGraphErrors((dataDir + fileNames[13] + std::to_string(i) + ".txt").c_str());
+		squareWave2Ch[i] = new TGraphErrors((dataDir + fileNames[13] + std::to_string(i) + ".txt").c_str());
+	}
+
+	TGraphErrors* squareWaveGenR1 = new TGraphErrors(squareWave1Ch[0]->GetN(), squareWave1Ch[0]->GetY(), squareWave1Ch[1]->GetY());
+	TGraphErrors* squareWaveGenR2 = new TGraphErrors(squareWave2Ch[0]->GetN(), squareWave2Ch[0]->GetY(), squareWave2Ch[1]->GetY());
+
+	double stdDev1VCh[2] {
+		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetX()),
+		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetY())
+	};
+	Double_t cov1Ch01 {squareWaveGenR1->GetCovariance()};
+	std::cout << "Found covariance for acquisition 1 of: " << cov1Ch01 << std::endl;
+	Double_t stdDev2VCh[2] {
+		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetX()),
+		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetY())
+	};
+	Double_t cov2Ch01 {squareWaveGenR1->GetCovariance()};
+	std::cout << "Found covariance for acquisition 2 of: " << cov2Ch01 << std::endl;
+	
 	// Start data prep
+
+	std::cout << "Started data prep.\n";
 
 	// Phase offset functions fitting
 	
@@ -393,12 +439,12 @@ void analyze(std::string dataDir) {
 	*/
 
 	// fit stdDev functions
+	std::cout << "Fitting stdDev functions.\n";
 
 	TF1* amplitudeErrFCh[4] {};
 	TF1* phaseErrFCh[4] {};
 
-	i = 0;
-	for (; i < 4; ++i) {
+	for (i = 0; i < 4; ++i) {
 		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
 		ampErrsCh[i]->Fit(amplitudeErrFCh[i]);
 		amplitudeErrFCh[i]->Write();
@@ -406,6 +452,8 @@ void analyze(std::string dataDir) {
 		phiErrsCh[i]->Fit(phaseErrFCh[i]);
 		phaseErrFCh[i]->Write();
 	}
+
+	std::cout << "Adding errors to graphs.\n";
 
 	addYErr(ampFreqRespR, amplitudeErrFCh[1]);
 	ampFreqRespR->Write();
@@ -424,18 +472,23 @@ void analyze(std::string dataDir) {
 	// coexpress sinusoids
 	
 	TGraphErrors* lissajousGenR1 = correlate(sines[0][0], sines[1][0]);
+	addXYErr(lissajousGenR1, stdDev1VCh[0], stdDev1VCh[1]);
 	lissajousGenR1->Write();
 	TGraphErrors* lissajousGenR2 = correlate(sines[0][1], sines[1][1]);
+	addXYErr(lissajousGenR2, stdDev1VCh[0], stdDev1VCh[1]);
 	lissajousGenR2->Write();
 	TGraphErrors* lissajousGenR3 = correlate(sines[0][2], sines[1][2]);
+	addXYErr(lissajousGenR2, stdDev1VCh[0], stdDev1VCh[1]);
 	lissajousGenR3->Write();
 
-	TGraphErrors* polarLissajousGenR1 = polarize(lissajousGenR1);
+	TGraphErrors* polarLissajousGenR1 = polarize(lissajousGenR1, cov1Ch01);
 	polarLissajousGenR1->Write();
-	TGraphErrors* polarLissajousGenR2 = polarize(lissajousGenR2);
+	TGraphErrors* polarLissajousGenR2 = polarize(lissajousGenR2, cov1Ch01);
 	polarLissajousGenR2->Write();
-	TGraphErrors* polarLissajousGenR3 = polarize(lissajousGenR2);
+	TGraphErrors* polarLissajousGenR3 = polarize(lissajousGenR2, cov1Ch01);
 	polarLissajousGenR3->Write();
+
+	std::cout << "Started fitting functions.\n";
 
 	// fit functions, need to initialize values
 
@@ -474,8 +527,12 @@ void analyze(std::string dataDir) {
 	polarLissajousGenR3->Fit(polarLissajousGenR3F);
 	polarLissajousGenR2F->Write();
 
+	std::cout << "Done!" << std::endl;
+
 	// space for cosmetic editing
 
 	// saving EVERYTHING to TFile
+	
+	results->Close();
 
 }
