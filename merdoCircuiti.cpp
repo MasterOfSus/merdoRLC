@@ -41,7 +41,7 @@ void correctSins(TGraphErrors* sinusoid, Double_t deltaT, Int_t nChannel) {
 	}
 }
 
-// This one provides the error, but need fitted lines to return it correctly
+// This one provides the error, but needs fitted lines to return it correctly
 
 void addYErr(TGraphErrors* graph, TF1* yErrF) {
 	for (Int_t i {0}; i < graph->GetN(); ++i) {
@@ -53,7 +53,7 @@ void addYErr(TGraphErrors* graph, TF1* yErrF) {
 	}
 }
 
-// transform two sinusoids into a lissajous shape
+// Transform two sinusoids into a lissajous shape
 
 TGraphErrors* correlate(TGraphErrors* sin1, TGraphErrors* sin2) {
 	return new TGraphErrors(sin1->GetN(), sin1->GetY(), sin2->GetY(), sin1->GetEX(), sin2->GetEY());
@@ -364,7 +364,7 @@ void analyze(std::string dataDir) {
 
 	// Start data prep
 
-	// Phase offset functions Fitting
+	// Phase offset functions fitting
 	
 	TF1* phiFreqRespCorrectorCh[4] {};
 	
