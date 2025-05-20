@@ -5,7 +5,8 @@
 #include <RtypesCore.h>
 #include <TMath.h>
 #include <fstream>
-
+#include <string>
+#include <TMultiGraph.h>
 // Measured values
 
 Double_t VPP {5.};
@@ -20,11 +21,15 @@ Double_t CErr {22E-11};
 
 // Data processing functions
 
+void correctPhi2PISystErr(TGraphErrors* phiFreqResp) {
+	for (int i {0}; i < phiFreqResp->GetN(); ++i) {
+		if (phiFreqResp->GetPointY(i) < -M_PI/2.)
+			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
+	}
+}
+
 void correctPhiFreqResp(TGraphErrors* phiFreqResp, const TF1* phaseOffsetF) {
 	for (Int_t i {0}; i < phiFreqResp->GetN(); ++i) {
-		if (phiFreqResp->GetPointY(i) < -M_PI/2.) {
-			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
-		}
 	phiFreqResp->SetPoint(i, phiFreqResp->GetPointX(i), phiFreqResp->GetPointY(i) - phaseOffsetF->Eval(phiFreqResp->GetPointX(i)));
 		phiFreqResp->SetPointError(i, phiFreqResp->GetErrorX(i), 
 			sqrt(
@@ -262,7 +267,7 @@ void analyze(std::string dataDir) {
 
 	std::cout << "Started analyzing data.\n";
 	
-	TFile* results = new TFile("analyzedData.ROOT", "RECREATE");
+	TFile* results = new TFile("analyzedData.root", "RECREATE");
 
 	std::vector<std::string> fileNames {
 		"ampFreqRespR.txt",
@@ -284,12 +289,27 @@ void analyze(std::string dataDir) {
 	std::cout << "Started acquiring graphs.\n";
 
 	TGraphErrors* ampFreqRespR = new TGraphErrors((dataDir + fileNames[0]).c_str());
+	ampFreqRespR->SetName(fileNames[0].c_str());
+	ampFreqRespR->SetDrawOption("APE");
 	TGraphErrors* ampFreqRespL = new TGraphErrors((dataDir + fileNames[1]).c_str());
+	ampFreqRespL->SetName(fileNames[1].c_str());
+	ampFreqRespL->SetDrawOption("APE");
 	TGraphErrors* ampFreqRespC = new TGraphErrors((dataDir + fileNames[2]).c_str());
+	ampFreqRespC->SetName(fileNames[2].c_str());
+	ampFreqRespC->SetDrawOption("APE");
 
 	TGraphErrors* phaseFreqRespR = new TGraphErrors((dataDir + fileNames[3]).c_str());
+	phaseFreqRespR->SetName(fileNames[3].c_str());
+	phaseFreqRespR->SetDrawOption("APE");
+	correctPhi2PISystErr(phaseFreqRespR);
 	TGraphErrors* phaseFreqRespL = new TGraphErrors((dataDir + fileNames[4]).c_str());
+	phaseFreqRespL->SetName(fileNames[4].c_str());
+	phaseFreqRespL->SetDrawOption("APE");
+	correctPhi2PISystErr(phaseFreqRespL);
 	TGraphErrors* phaseFreqRespC = new TGraphErrors((dataDir + fileNames[5]).c_str());
+	phaseFreqRespC->SetName(fileNames[5].c_str());
+	phaseFreqRespC->SetDrawOption("APE");
+	correctPhi2PISystErr(phaseFreqRespC);
 
 	// acquire amplitude errors graphs
 	
@@ -302,6 +322,7 @@ void analyze(std::string dataDir) {
 			ampErrsCh[j] = new TGraphErrors(
 				(dataDir + fileNames[6] + std::to_string(j) + ".txt" ).c_str()
 			);
+			ampErrsCh[j]->SetName((fileNames[6] + std::to_string(j) + ".txt").c_str());
 			ampErrsCh[j]->Write();
 		}
 	}
@@ -324,20 +345,6 @@ void analyze(std::string dataDir) {
 
 	// acquire phase errors graphs
 
-	TGraphErrors* phiErrsCh[4] {};
-
-	for (int j {0}; j < 4; ++j) {
-		if (
-			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
-		) {
-			phiErrsCh[j] = new TGraphErrors(
-				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
-			);
-			phiErrsCh[j]->Write();
-		}
-	}
-
-	// acquire phase offsets graphs
 	TGraphErrors* phiOffsCh[4] {};
 
 	for (int j {0}; j < 4; ++j) {
@@ -345,10 +352,26 @@ void analyze(std::string dataDir) {
 			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
 		) {
 			phiOffsCh[j] = new TGraphErrors(
+				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
+			);
+			phiOffsCh[j]->SetName(("phiOffsCh" + std::to_string(j) + ".txt").c_str());
+			phiOffsCh[j]->Write();
+		}
+	}
+
+	// acquire phase offsets graphs
+	TGraphErrors* phiErrsCh[4] {};
+
+	for (int j {0}; j < 4; ++j) {
+		if (
+			std::ifstream(dataDir + fileNames[7] + std::to_string(j) + ".txt").good()
+		) {
+			phiErrsCh[j] = new TGraphErrors(
 				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str(),
 				"%lg%*lg%lg"
 			);
-			phiOffsCh[j]->Write();
+			phiErrsCh[j]->SetName((fileNames[7] + std::to_string(j) + ".txt").c_str());
+			phiErrsCh[j]->Write();
 		}
 	}
 
@@ -374,6 +397,8 @@ void analyze(std::string dataDir) {
 				(dataDir + fileNames[8 + j] + std::to_string(i) + ".txt" ).c_str()
 				)
 			);
+			sines[j][i - 1]->SetName((fileNames[8 + j] + std::to_string(i) + ".txt").c_str());
+			sines[j][i - 1]->SetDrawOption("APE");
 			++i;
 		}	
 	}
@@ -386,14 +411,33 @@ void analyze(std::string dataDir) {
 	i = 0;
 
 	for (; i < 4; ++i) {
-		squareWave1Ch[i] = new TGraphErrors((dataDir + fileNames[13] + std::to_string(i) + ".txt").c_str());
+		squareWave1Ch[i] = new TGraphErrors((dataDir + fileNames[12] + std::to_string(i) + ".txt").c_str());
 		squareWave2Ch[i] = new TGraphErrors((dataDir + fileNames[13] + std::to_string(i) + ".txt").c_str());
+		std::cout << "NPoints for squareWave1Ch" << std::to_string(i) << ": " << squareWave1Ch[i]->GetN() << std::endl;
+		for (int j {squareWave1Ch[i]->GetN() / 4}; j >= 0; --j) {
+			std::cout << "a";
+			squareWave1Ch[i]->RemovePoint(j);
+			squareWave2Ch[i]->RemovePoint(j);
+		};
+		std::cout << "\n";
 	}
+	squareWave1Ch[0]->SetName("squareWave1Ch0");
+	squareWave1Ch[0]->Write();
+	squareWave2Ch[0]->SetName("squareWave2Ch0");
+	squareWave2Ch[0]->Write();
+	squareWave1Ch[1]->SetName("squareWave1Ch1");
+	squareWave1Ch[1]->Write();
+	squareWave2Ch[1]->SetName("squareWave2Ch1");
+	squareWave2Ch[1]->Write();
 
 	TGraphErrors* squareWaveGenR1 = new TGraphErrors(squareWave1Ch[0]->GetN(), squareWave1Ch[0]->GetY(), squareWave1Ch[1]->GetY());
+	squareWaveGenR1->SetName("squareWaveGenR1");
+	squareWaveGenR1->Write();
 	TGraphErrors* squareWaveGenR2 = new TGraphErrors(squareWave2Ch[0]->GetN(), squareWave2Ch[0]->GetY(), squareWave2Ch[1]->GetY());
+	squareWaveGenR2->SetName("squareWaveGenR2");
+	squareWaveGenR2->Write();
 
-	double stdDev1VCh[2] {
+	Double_t stdDev1VCh[2] {
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetX()),
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetY())
 	};
@@ -420,12 +464,6 @@ void analyze(std::string dataDir) {
 		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
 		phiFreqRespCorrectorCh[i]->Write();
 	}
-
-	// correcting phase freq resp graph for syst phase offset
-	
-	correctPhiFreqResp(phaseFreqRespR, phiFreqRespCorrectorCh[1]);
-	correctPhiFreqResp(phaseFreqRespL, phiFreqRespCorrectorCh[2]);
-	correctPhiFreqResp(phaseFreqRespC, phiFreqRespCorrectorCh[3]);
 
 	/*
 	prob not gonna do it, hopefully negligible
@@ -469,24 +507,40 @@ void analyze(std::string dataDir) {
 	addYErr(phaseFreqRespC, phaseErrFCh[3]);
 	phaseFreqRespC->Write();
 
+	// correcting phase freq resp graph for syst phase offset
+	
+	correctPhiFreqResp(phaseFreqRespR, phiFreqRespCorrectorCh[1]);
+	correctPhiFreqResp(phaseFreqRespL, phiFreqRespCorrectorCh[2]);
+	correctPhiFreqResp(phaseFreqRespC, phiFreqRespCorrectorCh[3]);
+
+
 	// coexpress sinusoids
 	
 	TGraphErrors* lissajousGenR1 = correlate(sines[0][0], sines[1][0]);
 	addXYErr(lissajousGenR1, stdDev1VCh[0], stdDev1VCh[1]);
+	lissajousGenR1->SetDrawOption("APE");
 	lissajousGenR1->Write();
 	TGraphErrors* lissajousGenR2 = correlate(sines[0][1], sines[1][1]);
 	addXYErr(lissajousGenR2, stdDev1VCh[0], stdDev1VCh[1]);
+	lissajousGenR2->SetDrawOption("APE");
 	lissajousGenR2->Write();
 	TGraphErrors* lissajousGenR3 = correlate(sines[0][2], sines[1][2]);
-	addXYErr(lissajousGenR2, stdDev1VCh[0], stdDev1VCh[1]);
+	addXYErr(lissajousGenR3, stdDev1VCh[0], stdDev1VCh[1]);
+	lissajousGenR3->SetDrawOption("APE");
 	lissajousGenR3->Write();
+
+	TMultiGraph* polarLissajouses = new TMultiGraph();
 
 	TGraphErrors* polarLissajousGenR1 = polarize(lissajousGenR1, cov1Ch01);
 	polarLissajousGenR1->Write();
+	polarLissajouses->Add(polarLissajousGenR1, "APE");
 	TGraphErrors* polarLissajousGenR2 = polarize(lissajousGenR2, cov1Ch01);
 	polarLissajousGenR2->Write();
-	TGraphErrors* polarLissajousGenR3 = polarize(lissajousGenR2, cov1Ch01);
+	polarLissajouses->Add(polarLissajousGenR2, "APE");
+	TGraphErrors* polarLissajousGenR3 = polarize(lissajousGenR3, cov1Ch01);
 	polarLissajousGenR3->Write();
+	polarLissajouses->Add(polarLissajousGenR3, "APE");
+	polarLissajouses->Write();
 
 	std::cout << "Started fitting functions.\n";
 
