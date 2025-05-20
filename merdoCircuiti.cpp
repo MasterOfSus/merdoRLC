@@ -71,7 +71,7 @@ void addXYErr(TGraphErrors* graph, Double_t xErr, Double_t yErr) {
 // Transform two sinusoids into a lissajous shape
 
 TGraphErrors* correlate(TGraphErrors* sin1, TGraphErrors* sin2) {
-	return new TGraphErrors(sin1->GetN(), sin1->GetY(), sin2->GetY(), sin1->GetEX(), sin2->GetEY());
+	return new TGraphErrors(sin1->GetN(), sin1->GetY(), sin2->GetY(), sin1->GetEY(), sin2->GetEY());
 }
 
 // auxiliary polarization functions
@@ -191,18 +191,25 @@ TGraphErrors* polarize(TGraphErrors* lissajous, Double_t cov) {
 	TGraphErrors* polarized = new TGraphErrors(lissajous->GetN());
 	for (int i {0}; i < lissajous->GetN(); ++i) {
 		polarized->SetPoint(i,
-			rFromPt(lissajous->GetPointX(i), lissajous->GetPointY(i)),
-			thetaFromPt(lissajous->GetPointX(i), lissajous->GetPointY(i))
+			thetaFromPt(lissajous->GetPointX(i), lissajous->GetPointY(i)),
+			rFromPt(lissajous->GetPointX(i), lissajous->GetPointY(i))
 		);
 		polarized->SetPointError(i,
-			rErr(lissajous->GetPointX(i), lissajous->GetPointY(i), lissajous->GetErrorX(i), lissajous->GetErrorY(i)),
 			thetaErr(lissajous->GetPointX(i), lissajous->GetPointY(i),
-							 lissajous->GetErrorX(i), lissajous->GetErrorY(i), cov));
+							 lissajous->GetErrorX(i), lissajous->GetErrorY(i), cov),
+			rErr(lissajous->GetPointX(i), lissajous->GetPointY(i), lissajous->GetErrorX(i), lissajous->GetErrorY(i)));
 	}
 	return polarized;
 }
 
 // Fitting functions
+
+Double_t phiErrF(Double_t* omega, Double_t* pars) {
+	if (*omega < 62835.)
+		return pars[0] + *omega*pars[1] - pars[1]*62835.;
+	else
+		return pars[0] + *omega*pars[2] - pars[2]*62835.;
+};
 
 Double_t amplitudeFreqRespR(Double_t* omega, Double_t* pars) {
 	// [0] is V0
@@ -242,13 +249,17 @@ Double_t amplitudeFreqRespC(Double_t *omega, Double_t* pars) {
 }
 
 Double_t phaseFreqResp(Double_t* omega, Double_t* pars) {
+	// [0] is either pi/2 or 0 or -pi/2
+	// [1] is R 
+	// [2] is L 
+	// [3] is C
 	return pars[0] + atan( (1 - *omega**omega*pars[2]*pars[3]) / (*omega*pars[1]*pars[3]) );
 }
 
 Double_t polarLissajous(Double_t* theta, Double_t* pars) {
 	// [0] is V0
-	// [1] is a 
-	// [2] is phi
+	// [1] is a = sqrt(R^2 + (omega*L - 1/omega*C))
+	// [2] is phi = arctan((1 - omega^2*L*C/omega*R*C)
 	
 	Double_t V0 { pars[0] };
 	Double_t a { pars[1] };
@@ -355,11 +366,10 @@ void analyze(std::string dataDir) {
 				(dataDir + fileNames[7] + std::to_string(j) + ".txt" ).c_str()
 			);
 			phiOffsCh[j]->SetName(("phiOffsCh" + std::to_string(j) + ".txt").c_str());
-			phiOffsCh[j]->Write();
 		}
 	}
 
-	// acquire phase offsets graphs
+	// acquire phase error graphs
 	TGraphErrors* phiErrsCh[4] {};
 
 	for (int j {0}; j < 4; ++j) {
@@ -454,17 +464,6 @@ void analyze(std::string dataDir) {
 
 	std::cout << "Started data prep.\n";
 
-	// Phase offset functions fitting
-	
-	TF1* phiFreqRespCorrectorCh[4] {};
-	
-	i = 0;
-	for (; i < 4; ++i) {
-		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
-		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
-		phiFreqRespCorrectorCh[i]->Write();
-	}
-
 	/*
 	prob not gonna do it, hopefully negligible
 	i = 0;
@@ -483,11 +482,13 @@ void analyze(std::string dataDir) {
 	TF1* phaseErrFCh[4] {};
 
 	for (i = 0; i < 4; ++i) {
-		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
+		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol0", 0., 1E6);
 		ampErrsCh[i]->Fit(amplitudeErrFCh[i]);
 		amplitudeErrFCh[i]->Write();
-		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), "pol1", 0., 1E6);
+		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), phiErrF, 0., 1E6, 3);
+		phaseErrFCh[i]->SetParameters(0.00225, -0.0001, 0.0001);
 		phiErrsCh[i]->Fit(phaseErrFCh[i]);
+		phaseErrFCh[i]->SetNpx(1000);
 		phaseErrFCh[i]->Write();
 	}
 
@@ -506,6 +507,30 @@ void analyze(std::string dataDir) {
 	phaseFreqRespL->Write();
 	addYErr(phaseFreqRespC, phaseErrFCh[3]);
 	phaseFreqRespC->Write();
+
+	// Phase offset functions fitting
+	
+	TF1* phiFreqRespCorrectorCh[4] {};
+
+	i = 0;
+
+	for (TGraphErrors* g: phiOffsCh) {
+		addYErr(g, phaseErrFCh[i]);
+		g->Write();
+		++i;
+	}
+
+	Double_t expSlopes[4] {0., 0.000001, 0.000002, 0.000003};
+
+	i = 0;
+	for (; i < 4; ++i) {
+		std::cout << "Fitting phi offset function for channel " << i << std::endl;
+		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 3E5);
+		phiFreqRespCorrectorCh[i]->SetParameter(1, expSlopes[i]);
+		phiFreqRespCorrectorCh[i]->SetParameter(0, 0.);
+		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
+		phiFreqRespCorrectorCh[i]->Write();
+	}
 
 	// correcting phase freq resp graph for syst phase offset
 	
@@ -553,10 +578,32 @@ void analyze(std::string dataDir) {
 	TF1* phaseFreqRespRF = new TF1("phaseFreqRespRF", phaseFreqResp, 0., 1E6, 4);
 	TF1* phaseFreqRespLF = new TF1("phaseFreqRespLF", phaseFreqResp, 0., 1E6, 4);
 	TF1* phaseFreqRespCF = new TF1("phaseFreqRespCF", phaseFreqResp, 0., 1E6, 4);
+	phaseFreqRespCF->SetParameters(-M_PI/2., R, L, C);
 
 	TF1* polarLissajousGenR1F = new TF1("polarLissajousGenR1F", polarLissajous, 0., 2*M_PI, 3);
+	polarLissajousGenR1F->SetParameters(
+		2.5,
+		sqrt(R*R + pow((5E3*L - 1/(5E3*C)), 2.)),
+		atan((1 - 25E6*L*C)/(5E3*R*C))
+	);
+	polarLissajousGenR1F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR1F->SetNpx(1000);
 	TF1* polarLissajousGenR2F = new TF1("polarLissajousGenR2F", polarLissajous, 0., 2*M_PI, 3);
-	TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 2*M_PI, 3);
+	polarLissajousGenR2F->SetParameters(
+		2.5,
+		sqrt(R*R + pow((10E3*L - 1/(10E3*C)), 2.)),
+		atan((1 - 1E8*L*C)/(1E4*R*C))
+	);
+	polarLissajousGenR2F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR2F->SetNpx(1000);
+TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 2*M_PI, 3);
+	polarLissajousGenR3F->SetParameters(
+		2.5,
+		sqrt(R*R + pow((15E3*L - 1/(15E3*C)), 2.)),
+		atan((1 - 2.25E8*L*C)/(1.5E4*R*C))
+	);
+	polarLissajousGenR3F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR3F->SetNpx(1000);
 
 	// fitting
 	
