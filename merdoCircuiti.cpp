@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <TMultiGraph.h>
+#include <TCanvas.h>
 // Measured values
 
 Double_t VPP {5.};
@@ -572,53 +573,64 @@ void analyze(std::string dataDir) {
 	// fit functions, need to initialize values
 
 	TF1* ampFreqRespRF = new TF1("ampFreqRespRF", amplitudeFreqRespR, 0., 1E6, 4);
+	ampFreqRespRF->SetParameters(VPP/2., R, L, C);
+	ampFreqRespRF->SetNpx(1000);
 	TF1* ampFreqRespLF = new TF1("ampFreqRespLF", amplitudeFreqRespL, 0., 1E6, 4);
+	ampFreqRespLF->SetParameters(VPP/2., R, L, C);
+	ampFreqRespLF->SetNpx(1000);
 	TF1* ampFreqRespCF = new TF1("ampFreqRespCF", amplitudeFreqRespC, 0., 1E6, 4);
+	ampFreqRespCF->SetParameters(VPP/2., R, L, C);
+	ampFreqRespCF->SetNpx(1000);
 
 	TF1* phaseFreqRespRF = new TF1("phaseFreqRespRF", phaseFreqResp, 0., 1E6, 4);
+	phaseFreqRespRF->SetParameters(0., R, L, C);
+	phaseFreqRespRF->SetNpx(1000);
 	TF1* phaseFreqRespLF = new TF1("phaseFreqRespLF", phaseFreqResp, 0., 1E6, 4);
+	phaseFreqRespLF->SetParameters(M_PI/2., R, L, C);
+	phaseFreqRespLF->SetNpx(1000);
 	TF1* phaseFreqRespCF = new TF1("phaseFreqRespCF", phaseFreqResp, 0., 1E6, 4);
 	phaseFreqRespCF->SetParameters(-M_PI/2., R, L, C);
+	phaseFreqRespCF->SetNpx(1000);
 
 	TF1* polarLissajousGenR1F = new TF1("polarLissajousGenR1F", polarLissajous, 0., 2*M_PI, 3);
 	polarLissajousGenR1F->SetParameters(
-		2.5,
-		sqrt(R*R + pow((5E3*L - 1/(5E3*C)), 2.)),
-		atan((1 - 25E6*L*C)/(5E3*R*C))
+		VPP/2.,
+		R/sqrt(R*R + pow((2*M_PI*5E3*L - 1/(2*M_PI*5E3*C)), 2.)),
+		atan((1 - 4*M_PI*M_PI*25E6*L*C)/(2*M_PI*5E3*R*C))
 	);
-	polarLissajousGenR1F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR1F->FixParameter(0, VPP/2.);
 	polarLissajousGenR1F->SetNpx(1000);
 	TF1* polarLissajousGenR2F = new TF1("polarLissajousGenR2F", polarLissajous, 0., 2*M_PI, 3);
 	polarLissajousGenR2F->SetParameters(
-		2.5,
-		sqrt(R*R + pow((10E3*L - 1/(10E3*C)), 2.)),
-		atan((1 - 1E8*L*C)/(1E4*R*C))
+		VPP/2.,
+		R/sqrt(R*R + pow((2*M_PI*10E3*L - 1/(2*M_PI*10E3*C)), 2.)),
+		atan((1 - 4*M_PI*M_PI*1E8*L*C)/(2*M_PI*1E4*R*C))
 	);
-	polarLissajousGenR2F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR2F->FixParameter(0, VPP/2.);
 	polarLissajousGenR2F->SetNpx(1000);
 TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 2*M_PI, 3);
 	polarLissajousGenR3F->SetParameters(
-		2.5,
-		sqrt(R*R + pow((15E3*L - 1/(15E3*C)), 2.)),
-		atan((1 - 2.25E8*L*C)/(1.5E4*R*C))
+		VPP/2.,
+		R/sqrt(R*R + pow((2*M_PI*15E3*L - 1/(2*M_PI*15E3*C)), 2.)),
+		atan((1 - 4*M_PI*M_PI*2.25E8*L*C)/(2*M_PI*1.5E4*R*C))
 	);
-	polarLissajousGenR3F->SetParLimits(0, 0., 10.);
+	polarLissajousGenR3F->FixParameter(0, VPP/2.);
 	polarLissajousGenR3F->SetNpx(1000);
 
 	// fitting
 	
 	ampFreqRespR->Fit(ampFreqRespRF);
 	ampFreqRespRF->Write();
-	ampFreqRespL->Fit(ampFreqRespLF);
+	//ampFreqRespL->Fit(ampFreqRespLF);
 	ampFreqRespLF->Write();
-	ampFreqRespC->Fit(ampFreqRespCF);
+	//ampFreqRespC->Fit(ampFreqRespCF);
 	ampFreqRespCF->Write();
 
 	phaseFreqRespR->Fit(phaseFreqRespRF);
 	phaseFreqRespRF->Write();
-	phaseFreqRespL->Fit(phaseFreqRespLF);
+	phaseFreqRespL->Fit(phaseFreqRespLF, "", "", 5000., 40000.);
 	phaseFreqRespLF->Write();
-	phaseFreqRespC->Fit(phaseFreqRespCF);
+	phaseFreqRespC->Fit(phaseFreqRespCF, "", "", 0., 30000.);
 	phaseFreqRespCF->Write();
 
 	polarLissajousGenR1->Fit(polarLissajousGenR1F);
@@ -626,9 +638,51 @@ TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 
 	polarLissajousGenR2->Fit(polarLissajousGenR2F);
 	polarLissajousGenR2F->Write();
 	polarLissajousGenR3->Fit(polarLissajousGenR3F);
-	polarLissajousGenR2F->Write();
+	polarLissajousGenR3F->Write();
 
-	std::cout << "Done!" << std::endl;
+	std::cout << "Started drawing stuff." << std::endl;
+
+	TCanvas* ampFreqRespCnvs = new TCanvas();
+	ampFreqRespCnvs->SetName("ampFreqRespCnvs");
+	ampFreqRespCnvs->Divide(3);
+	ampFreqRespCnvs->cd(1);
+	ampFreqRespR->Draw("APE");
+	ampFreqRespRF->Draw("SAME");
+	ampFreqRespCnvs->cd(2);
+	ampFreqRespL->Draw("APE");
+	ampFreqRespLF->Draw("SAME");
+	ampFreqRespCnvs->cd(3);
+	ampFreqRespC->Draw("APE");
+	ampFreqRespCF->Draw("SAME");
+	ampFreqRespCnvs->Write();
+
+	TCanvas* phaseFreqRespCnvs = new TCanvas();
+	phaseFreqRespCnvs->SetName("phaseFreqRespCnvs");
+	phaseFreqRespCnvs->Divide(3);
+	phaseFreqRespCnvs->cd(1);
+	phaseFreqRespR->Draw("APE");
+	phaseFreqRespRF->Draw("SAME");
+	phaseFreqRespCnvs->cd(2);
+	phaseFreqRespL->Draw("APE");
+	phaseFreqRespLF->Draw("SAME");
+	phaseFreqRespCnvs->cd(3);
+	phaseFreqRespC->Draw("APE");
+	phaseFreqRespCF->Draw("SAME");
+	phaseFreqRespCnvs->Write();
+
+	TCanvas* lissajousCnvs = new TCanvas();
+	lissajousCnvs->SetName("lissajousCnvs");
+	lissajousCnvs->Divide(3);
+	lissajousCnvs->cd(1);
+	polarLissajousGenR1->Draw("APE");
+	polarLissajousGenR1F->Draw("SAME");
+	lissajousCnvs->cd(2);
+	polarLissajousGenR2->Draw("APE");
+	polarLissajousGenR2F->Draw("SAME");
+	lissajousCnvs->cd(3);
+	polarLissajousGenR3->Draw("APE");
+	polarLissajousGenR3F->Draw("SAME");
+	lissajousCnvs->Write();
 
 	// space for cosmetic editing
 
