@@ -212,49 +212,53 @@ Double_t phiErrF(Double_t* omega, Double_t* pars) {
 		return pars[0] + *omega*pars[2] - pars[2]*62835.;
 };
 
-Double_t amplitudeFreqRespR(Double_t* omega, Double_t* pars) {
+Double_t amplitudeFreqRespR(Double_t* freq, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
 	// [3] is C
+	Double_t omega {*freq*2*M_PI};
 	return pars[0]*pars[1] /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
+			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
 		);
 }
 
-Double_t amplitudeFreqRespL(Double_t* omega, Double_t* pars) {
+Double_t amplitudeFreqRespL(Double_t* freq, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
 	// [3] is C
-	return *omega*pars[0]*pars[2] /
+	Double_t omega {*freq*2*M_PI};
+	return omega*pars[0]*pars[2] /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
+			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
 		);
 }
 
-Double_t amplitudeFreqRespC(Double_t *omega, Double_t* pars) {
+Double_t amplitudeFreqRespC(Double_t *freq, Double_t* pars) {
 	// [0] is V0
 	// [1] is R
 	// [2] is L
 	// [3] is C
+	Double_t omega {*freq*2*M_PI};
 	return pars[0] /
-		(*omega*pars[3]) /
+		(omega*pars[3]) /
 		sqrt(
 			pars[1]*pars[1] +
-			pow((*omega*pars[2] - 1/(*omega * pars[3])), 2.)
+			pow((omega*pars[2] - 1/(omega * pars[3])), 2.)
 		);
 }
 
-Double_t phaseFreqResp(Double_t* omega, Double_t* pars) {
+Double_t phaseFreqResp(Double_t* freq, Double_t* pars) {
 	// [0] is either pi/2 or 0 or -pi/2
 	// [1] is R 
 	// [2] is L 
 	// [3] is C
-	return pars[0] + atan( (1 - *omega**omega*pars[2]*pars[3]) / (*omega*pars[1]*pars[3]) );
+	Double_t omega {*freq*2*M_PI};
+	return pars[0] + atan( (1 - omega*omega*pars[2]*pars[3]) / (omega*pars[1]*pars[3]) );
 }
 
 Double_t polarLissajous(Double_t* theta, Double_t* pars) {
@@ -621,9 +625,9 @@ TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 
 	
 	ampFreqRespR->Fit(ampFreqRespRF);
 	ampFreqRespRF->Write();
-	//ampFreqRespL->Fit(ampFreqRespLF);
+	ampFreqRespL->Fit(ampFreqRespLF);
 	ampFreqRespLF->Write();
-	//ampFreqRespC->Fit(ampFreqRespCF);
+	ampFreqRespC->Fit(ampFreqRespCF);
 	ampFreqRespCF->Write();
 
 	phaseFreqRespR->Fit(phaseFreqRespRF);
