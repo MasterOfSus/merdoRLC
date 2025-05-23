@@ -26,6 +26,7 @@ void correctPhi2PISystErr(TGraphErrors* phiFreqResp) {
 	for (int i {0}; i < phiFreqResp->GetN(); ++i) {
 		if (phiFreqResp->GetPointY(i) < -M_PI/2.)
 			phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) + 2*M_PI);
+		phiFreqResp->SetPointY(i, phiFreqResp->GetPointY(i) - 0.5*M_PI);
 	}
 }
 
@@ -258,7 +259,7 @@ Double_t phaseFreqResp(Double_t* freq, Double_t* pars) {
 	// [2] is L 
 	// [3] is C
 	Double_t omega {*freq*2*M_PI};
-	return pars[0] + atan( (1 - omega*omega*pars[2]*pars[3]) / (omega*pars[1]*pars[3]) );
+	return (pars[0] + atan( ( 1/(omega*pars[3]) - omega*pars[2] ) / pars[1]));
 }
 
 Double_t polarLissajous(Double_t* theta, Double_t* pars) {
@@ -315,14 +316,20 @@ void analyze(std::string dataDir) {
 	ampFreqRespC->SetDrawOption("APE");
 
 	TGraphErrors* phaseFreqRespR = new TGraphErrors((dataDir + fileNames[3]).c_str());
+	phaseFreqRespR->SetName("rawPhaseFreqRespR.txt");
+	phaseFreqRespR->Write();
 	phaseFreqRespR->SetName(fileNames[3].c_str());
 	phaseFreqRespR->SetDrawOption("APE");
 	correctPhi2PISystErr(phaseFreqRespR);
 	TGraphErrors* phaseFreqRespL = new TGraphErrors((dataDir + fileNames[4]).c_str());
+	phaseFreqRespL->SetName("rawPhaseFreqRespL.txt");
+	phaseFreqRespL->Write();
 	phaseFreqRespL->SetName(fileNames[4].c_str());
 	phaseFreqRespL->SetDrawOption("APE");
 	correctPhi2PISystErr(phaseFreqRespL);
 	TGraphErrors* phaseFreqRespC = new TGraphErrors((dataDir + fileNames[5]).c_str());
+	phaseFreqRespC->SetName("rawPhaseFreqRespC.txt");
+	phaseFreqRespC->Write();
 	phaseFreqRespC->SetName(fileNames[5].c_str());
 	phaseFreqRespC->SetDrawOption("APE");
 	correctPhi2PISystErr(phaseFreqRespC);
@@ -507,11 +514,8 @@ void analyze(std::string dataDir) {
 	ampFreqRespC->Write();
 
 	addYErr(phaseFreqRespR, phaseErrFCh[1]);
-	phaseFreqRespR->Write();
 	addYErr(phaseFreqRespL, phaseErrFCh[2]);
-	phaseFreqRespL->Write();
 	addYErr(phaseFreqRespC, phaseErrFCh[3]);
-	phaseFreqRespC->Write();
 
 	// Phase offset functions fitting
 	
@@ -540,9 +544,11 @@ void analyze(std::string dataDir) {
 	// correcting phase freq resp graph for syst phase offset
 	
 	correctPhiFreqResp(phaseFreqRespR, phiFreqRespCorrectorCh[1]);
+	phaseFreqRespR->Write();
 	correctPhiFreqResp(phaseFreqRespL, phiFreqRespCorrectorCh[2]);
+	phaseFreqRespL->Write();
 	correctPhiFreqResp(phaseFreqRespC, phiFreqRespCorrectorCh[3]);
-
+	phaseFreqRespC->Write();
 
 	// coexpress sinusoids
 	
@@ -590,10 +596,10 @@ void analyze(std::string dataDir) {
 	phaseFreqRespRF->SetParameters(0., R, L, C);
 	phaseFreqRespRF->SetNpx(1000);
 	TF1* phaseFreqRespLF = new TF1("phaseFreqRespLF", phaseFreqResp, 0., 1E6, 4);
-	phaseFreqRespLF->SetParameters(M_PI/2., R, L, C);
+	phaseFreqRespLF->SetParameters(0.5*M_PI, R, L, C);
 	phaseFreqRespLF->SetNpx(1000);
 	TF1* phaseFreqRespCF = new TF1("phaseFreqRespCF", phaseFreqResp, 0., 1E6, 4);
-	phaseFreqRespCF->SetParameters(-M_PI/2., R, L, C);
+	phaseFreqRespCF->SetParameters(-0.5*M_PI, R, L, C);
 	phaseFreqRespCF->SetNpx(1000);
 
 	TF1* polarLissajousGenR1F = new TF1("polarLissajousGenR1F", polarLissajous, 0., 2*M_PI, 3);
@@ -673,6 +679,21 @@ TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 
 	phaseFreqRespC->Draw("APE");
 	phaseFreqRespCF->Draw("SAME");
 	phaseFreqRespCnvs->Write();
+
+	TCanvas* multiPhaseCnvs = new TCanvas();
+	multiPhaseCnvs->SetName("multiPhaseCnvs");
+	multiPhaseCnvs->Divide();
+	TMultiGraph* phaseFreqRespGrphs = new TMultiGraph();
+	phaseFreqRespGrphs->Add(phaseFreqRespR, "APE");
+	phaseFreqRespGrphs->Add(phaseFreqRespL, "APE");
+	phaseFreqRespGrphs->Add(phaseFreqRespC, "APE");
+	multiPhaseCnvs->cd(1);
+	phaseFreqRespGrphs->Draw("APE");
+	phaseFreqRespRF->Draw("SAME");
+	phaseFreqRespLF->Draw("SAME");
+	phaseFreqRespCF->Draw("SAME");
+	phaseFreqRespGrphs->Write();
+	multiPhaseCnvs->Write();
 
 	TCanvas* lissajousCnvs = new TCanvas();
 	lissajousCnvs->SetName("lissajousCnvs");
