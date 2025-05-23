@@ -603,10 +603,15 @@ void analyze(std::string dataDir) {
 	phaseFreqRespCF->SetNpx(1000);
 
 	TF1* polarLissajousGenR1F = new TF1("polarLissajousGenR1F", polarLissajous, 0., 2*M_PI, 3);
-	polarLissajousGenR1F->SetParameters(
+/*	polarLissajousGenR1F->SetParameters(
 		VPP/2.,
 		R/sqrt(R*R + pow((2*M_PI*5E3*L - 1/(2*M_PI*5E3*C)), 2.)),
 		atan((1 - 4*M_PI*M_PI*25E6*L*C)/(2*M_PI*5E3*R*C))
+	);*/
+	polarLissajousGenR1F->SetParameters(
+		VPP/2.,
+		R/sqrt(R*R + pow((2*M_PI*10E3*L - 1/(2*M_PI*10E3*C)), 2.)),
+		atan((1 - 4*M_PI*M_PI*1E8*L*C)/(2*M_PI*1E4*R*C))
 	);
 	polarLissajousGenR1F->FixParameter(0, VPP/2.);
 	polarLissajousGenR1F->SetNpx(1000);
@@ -643,7 +648,7 @@ TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 
 	phaseFreqRespC->Fit(phaseFreqRespCF, "", "", 0., 30000.);
 	phaseFreqRespCF->Write();
 
-	polarLissajousGenR1->Fit(polarLissajousGenR1F);
+	//polarLissajousGenR1->Fit(polarLissajousGenR1F);
 	polarLissajousGenR1F->Write();
 	polarLissajousGenR2->Fit(polarLissajousGenR2F);
 	polarLissajousGenR2F->Write();
