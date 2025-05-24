@@ -1,17 +1,9 @@
-#include "TGraphErrors.h"
-#include "TF1.h"
-#include "cmath"
-#include "TFile.h"
-#include <RtypesCore.h>
-#include <TMath.h>
 #include <fstream>
-#include <string>
-#include <TMultiGraph.h>
-#include <TCanvas.h>
 // Measured values
 
+#include <fstream>
 Double_t VPP {5.};
-Double_t R {1.499E3};
+Double_t R {1.499E3}; 
 Double_t RErr {2.};
 Double_t L {10.11E-3};
 Double_t LErr {10E-5};
@@ -206,11 +198,11 @@ TGraphErrors* polarize(TGraphErrors* lissajous, Double_t cov) {
 
 // Fitting functions
 
-Double_t phiErrF(Double_t* omega, Double_t* pars) {
-	if (*omega < 62835.)
-		return pars[0] + *omega*pars[1] - pars[1]*62835.;
+Double_t phiErrF(Double_t* freak, Double_t* pars) {
+	if (*freak < 10000.)
+		return pars[0] + *freak*pars[1] - pars[1]*10000.;
 	else
-		return pars[0] + *omega*pars[2] - pars[2]*62835.;
+		return pars[0] + *freak*pars[2] - pars[2]*10000.;
 };
 
 Double_t amplitudeFreqRespR(Double_t* freq, Double_t* pars) {
@@ -420,6 +412,7 @@ void analyze(std::string dataDir) {
 				)
 			);
 			sines[j][i - 1]->SetName((fileNames[8 + j] + std::to_string(i) + ".txt").c_str());
+			sines[j][i-1]->Write();
 			sines[j][i - 1]->SetDrawOption("APE");
 			++i;
 		}	
@@ -610,8 +603,8 @@ void analyze(std::string dataDir) {
 	);*/
 	polarLissajousGenR1F->SetParameters(
 		VPP/2.,
-		R/sqrt(R*R + pow((2*M_PI*10E3*L - 1/(2*M_PI*10E3*C)), 2.)),
-		atan((1 - 4*M_PI*M_PI*1E8*L*C)/(2*M_PI*1E4*R*C))
+		R/sqrt(R*R + pow((2*M_PI*7E3*L - 1/(2*M_PI*7E3*C)), 2.)),
+		atan((1 - 4*M_PI*M_PI*49E6*L*C)/(2*M_PI*7E3*R*C))
 	);
 	polarLissajousGenR1F->FixParameter(0, VPP/2.);
 	polarLissajousGenR1F->SetNpx(1000);
@@ -648,7 +641,7 @@ TF1* polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 
 	phaseFreqRespC->Fit(phaseFreqRespCF, "", "", 0., 30000.);
 	phaseFreqRespCF->Write();
 
-	//polarLissajousGenR1->Fit(polarLissajousGenR1F);
+	polarLissajousGenR1->Fit(polarLissajousGenR1F);
 	polarLissajousGenR1F->Write();
 	polarLissajousGenR2->Fit(polarLissajousGenR2F);
 	polarLissajousGenR2F->Write();
