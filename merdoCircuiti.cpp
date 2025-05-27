@@ -1,8 +1,8 @@
-#include <fstream>
-#include "/home/michele/root/include/TGraph.h"
-#include "/home/michele/root/include/TFormula.h"
-#include <cmath>
-#include "/home/michele/root/include/TMath.h"
+//#include <fstream>
+//#include "/home/michele/root/include/TGraph.h"
+//#include "/home/michele/root/include/TFormula.h"
+//#include <cmath>
+//#include "/home/michele/root/include/TMath.h"
 // Measured values
 
 #include <fstream>
@@ -481,10 +481,8 @@ void analyze(std::string dataDir)
 	{
 		squareWave1Ch[i] = new TGraphErrors((dataDir + fileNames[12] + std::to_string(i) + ".txt").c_str());
 		squareWave2Ch[i] = new TGraphErrors((dataDir + fileNames[13] + std::to_string(i) + ".txt").c_str());
-		std::cout << "NPoints for squareWave1Ch" << std::to_string(i) << ": " << squareWave1Ch[i]->GetN() << std::endl;
 		for (int j{squareWave1Ch[i]->GetN() / 4}; j >= 0; --j)
 		{
-			std::cout << "a";
 			squareWave1Ch[i]->RemovePoint(j);
 			squareWave2Ch[i]->RemovePoint(j);
 		};
@@ -510,7 +508,7 @@ void analyze(std::string dataDir)
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetX()),
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetY())};
 	Double_t cov1Ch01{squareWaveGenR1->GetCovariance()};
-	std::cout << "Found covariance for acquisition 1 of: " << cov1Ch01 << std::endl;
+	std::cout << "Found covariance for acquisition 1 of: " << cov1Ch01 << " and voltage stdDev equal to " << stdDev1VCh[0] << std::endl;
 	Double_t stdDev2VCh[2]{
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetX()),
 		TMath::StdDev(squareWaveGenR1->GetN(), squareWaveGenR1->GetY())};
@@ -627,6 +625,7 @@ void analyze(std::string dataDir)
 
 	// Drawing Lissajouses
 	TCanvas *ellipses = new TCanvas();
+	ellipses->SetCanvasSize(1920, 1080);
 	ellipses->SetName("Lissajous Ellipses");
 	ellipses->Divide(2);
 	ellipses->cd(1);
@@ -639,6 +638,7 @@ void analyze(std::string dataDir)
 	lissajousGenR3->GetYaxis()->SetTitle("Gen Voltage(V)");
 	lissajousGenR3->GetXaxis()->SetTitle("R Voltage(V)");
 	lissajousGenR3->Draw("APE");
+	ellipses->SaveAs("lissellips.gif");
 	ellipses->Write();
 
 	TMultiGraph *polarLissajouses = new TMultiGraph();
@@ -668,19 +668,21 @@ void analyze(std::string dataDir)
 	//							 0., 1E6);
 	//ampFreqRespVF->SetParameters(VPP/2, VPP / 2, dip, resfreq, gamma);
 	TF1* ampFreqRespVF = new TF1("genAmpFreqRespF", genAmpFreqResp, 0., 1E6, 5);
+	ampFreqRespVF->SetNpx(1000);
 	ampFreqRespVF->SetParameters(VPP/2,VPP/2,R,L,C);
-
 	TF1 *ampFreqRespRF = new TF1("ampFreqRespRF", amplitudeFreqRespR, 0., 1E6, 4);
+	ampFreqRespRF->SetNpx(1000);
 	ampFreqRespRF->SetParameters(VPP / 2., R, L, C);
-
-	TF1 *ampFreqRespLF = new TF1("ampFreqRespLF", amplitudeFreqRespL, 0., 1E6, 4);
+	TF1 *ampFreqRespLF = new TF1("ampFreqRespLF", amplitudeFreqRespL, 1E3, 4E4, 4);
+	ampFreqRespLF->SetNpx(1000);
 	ampFreqRespLF->SetParameters(VPP / 2., R, L, C);
-
-	TF1 *ampFreqRespCF = new TF1("ampFreqRespCF", amplitudeFreqRespC, 0., 1E6, 4);
+	TF1 *ampFreqRespCF = new TF1("ampFreqRespCF", amplitudeFreqRespC, 1E3, 4E4, 4);
+	ampFreqRespCF->SetNpx(1000);
 	ampFreqRespCF->SetParameters(VPP / 2., R, L, C);
 
-	TF1 *phaseFreqRespVF = new TF1("phaseFrequRespVF", phaseFreqResp, 0., 1E6, 1);
+	TF1 *phaseFreqRespVF = new TF1("phaseFreqRespVF", phaseFreqResp, 0., 1E6, 1);
 	phaseFreqRespVF->SetParameters(VPP);
+	phaseFreqRespVF->SetNpx(1000);
 	TF1 *phaseFreqRespRF = new TF1("phaseFreqRespRF", phaseFreqResp, 0., 1E6, 4);
 	phaseFreqRespRF->SetParameters(0., R, L, C);
 	phaseFreqRespRF->SetNpx(1000);
@@ -701,48 +703,57 @@ void analyze(std::string dataDir)
 		VPP / 2.,
 		R / sqrt(R * R + pow((2 * M_PI * 7E3 * L - 1 / (2 * M_PI * 7E3 * C)), 2.)),
 		atan((1 - 4 * M_PI * M_PI * 49E6 * L * C) / (2 * M_PI * 7E3 * R * C)));
-	polarLissajousGenR1F->FixParameter(0, VPP / 2.);
+	//polarLissajousGenR1F->FixParameter(0, VPP / 2.);
 	polarLissajousGenR1F->SetNpx(1000);
 	TF1 *polarLissajousGenR2F = new TF1("polarLissajousGenR2F", polarLissajous, 0., 2 * M_PI, 3);
 	polarLissajousGenR2F->SetParameters(
 		VPP / 2.,
 		R / sqrt(R * R + pow((2 * M_PI * 10E3 * L - 1 / (2 * M_PI * 10E3 * C)), 2.)),
 		atan((1 - 4 * M_PI * M_PI * 1E8 * L * C) / (2 * M_PI * 1E4 * R * C)));
-	polarLissajousGenR2F->FixParameter(0, VPP / 2.);
+	//polarLissajousGenR2F->FixParameter(0, VPP / 2.);
 	polarLissajousGenR2F->SetNpx(1000);
 	TF1 *polarLissajousGenR3F = new TF1("polarLissajousGenR3F", polarLissajous, 0., 2 * M_PI, 3);
 	polarLissajousGenR3F->SetParameters(
 		VPP / 2.,
 		R / sqrt(R * R + pow((2 * M_PI * 15E3 * L - 1 / (2 * M_PI * 15E3 * C)), 2.)),
 		atan((1 - 4 * M_PI * M_PI * 2.25E8 * L * C) / (2 * M_PI * 1.5E4 * R * C)));
-	polarLissajousGenR3F->FixParameter(0, VPP / 2.);
+	//polarLissajousGenR3F->FixParameter(0, VPP / 2.);
 	polarLissajousGenR3F->SetNpx(1000);
 
 	// fitting
+	std::cout << "Generator amplitude frequency response fit:\n";
 	ampFreqRespV->Fit(ampFreqRespVF, "NR");
 	ampFreqRespVF->Write();
+	std::cout << "R amplitude frequency response fit:\n";
 	ampFreqRespR->Fit(ampFreqRespRF, "NR");
 	ampFreqRespRF->Write();
+	std::cout << "L amplitude frequency response fit:\n";
 	ampFreqRespL->Fit(ampFreqRespLF, "NR");
-
 	ampFreqRespLF->Write();
+	std::cout << "C amplitude frequency response fit:\n";
 	ampFreqRespC->Fit(ampFreqRespCF, "NR");
-
 	ampFreqRespCF->Write();
 
+	std::cout << "Generator phase frequency response fit:\n";
 	phaseFreqRespV->Fit(phaseFreqRespVF, "NR");
 	phaseFreqRespVF->Write();
+	std::cout << "R phase frequency response fit:\n";
 	phaseFreqRespR->Fit(phaseFreqRespRF, "NR");
 	phaseFreqRespRF->Write();
+	std::cout << "L phase frequency response fit:\n";
 	phaseFreqRespL->Fit(phaseFreqRespLF, "NR", "", 5000., 40000.);
 	phaseFreqRespLF->Write();
-	phaseFreqRespC->Fit(phaseFreqRespCF, "NR", "", 0., 30000.);
+	std::cout << "C phase frequency response fit:\n";
+	phaseFreqRespC->Fit(phaseFreqRespCF, "NR", "", 1000., 40000.);
 	phaseFreqRespCF->Write();
 
+	std::cout << "Polar lissajous genR1 fit:\n";
 	polarLissajousGenR1->Fit(polarLissajousGenR1F);
 	polarLissajousGenR1F->Write();
+	std::cout << "Polar lissajous genR2 fit:\n";
 	polarLissajousGenR2->Fit(polarLissajousGenR2F);
 	polarLissajousGenR2F->Write();
+	std::cout << "Polar lissajous genR3 fit:\n";
 	polarLissajousGenR3->Fit(polarLissajousGenR3F);
 	polarLissajousGenR3F->Write();
 
@@ -757,25 +768,25 @@ void analyze(std::string dataDir)
 	ampFreqRespR->GetYaxis()->SetTitle("Amplitude(V)");
 	ampFreqRespR->SetMinimum(0.);
 	ampFreqRespR->Draw("APE");
-	ampFreqRespRF->SetNpx(1000);
+	ampFreqRespRF->SetNpx(10000);
 	ampFreqRespRF->SetTitle("R Fit");
 	ampFreqRespRF->Draw("SAME");
 	// ampFreqRespCnvs->cd(2);
 	ampFreqRespL->Draw("SAME");
 	ampFreqRespLF->SetLineColor(3);
 	ampFreqRespLF->SetTitle("L Fit");
-	ampFreqRespLF->SetNpx(1000);
+	ampFreqRespLF->SetNpx(10000);
 	ampFreqRespLF->Draw("SAME");
 	// ampFreqRespCnvs->cd(3);
 	ampFreqRespC->Draw("SAME");
 	ampFreqRespCF->SetLineColor(4);
 	ampFreqRespCF->SetTitle("C Fit");
-	ampFreqRespCF->SetNpx(1000);
+	ampFreqRespCF->SetNpx(10000);
 	ampFreqRespCF->Draw("SAME");
 	ampFreqRespV->Draw("SAME");
 	ampFreqRespVF->SetLineColor(6);
-	ampFreqRespVF->SetTitle("VGEn Fit");
-	ampFreqRespVF->SetNpx(1000);
+	ampFreqRespVF->SetTitle("VGen Fit");
+	ampFreqRespVF->SetNpx(10000);
 	ampFreqRespVF->Draw("SAME");
 	ampFreqRespCnvs->Write();
 	//
@@ -821,6 +832,7 @@ void analyze(std::string dataDir)
 	multiPhaseCnvs->Write();
 
 	TCanvas *lissajousCnvs = new TCanvas();
+	lissajousCnvs->SetCanvasSize(1920, 1080);
 	lissajousCnvs->SetName("lissajousCnvs");
 	lissajousCnvs->Divide(2);
 	// lissajousCnvs->cd(1);
@@ -839,6 +851,7 @@ void analyze(std::string dataDir)
 	polarLissajousGenR3->Draw("APE");
 	polarLissajousGenR3F->Draw("SAME");
 	lissajousCnvs->Write();
+	lissajousCnvs->SaveAs("polarLiss.gif");
 
 	// space for cosmetic editing
 
