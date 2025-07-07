@@ -3,9 +3,29 @@
 //#include "/home/michele/root/include/TFormula.h"
 //#include <cmath>
 //#include "/home/michele/root/include/TMath.h"
+#include <Rtypes.h>
+#include <TGraph.h>
+#include <TGraphErrors.h>
+#include <TF1.h>
+#include <TFile.h>
+#include <TCanvas.h>
+#include <TMath.h>
+#include <TFormula.h>
+#include <TAxis.h>
+#include <TColor.h>
+#include <TMultiGraph.h>
+#include <TPad.h>
+#include <TLegend.h>
+#include <TGlobal.h>
+#include <TStyle.h>
+#include <TPad.h>
+#include <TH2F.h>
+#include <TH1F.h>
+#include <fstream>
+#include <functional>
+
 // Measured values
 
-#include <fstream>
 Double_t VPP{5.};
 Double_t R{1.499E3};
 Double_t RErr{2.};
@@ -541,7 +561,7 @@ void analyze(std::string dataDir)
 		amplitudeErrFCh[i] = new TF1(("amplitudeErrFCh" + std::to_string(i)).c_str(), "pol0", 0., 1E6);
 		ampErrsCh[i]->Fit(amplitudeErrFCh[i]);
 		amplitudeErrFCh[i]->Write();
-		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), phiErrF, 0., 1E6, 3);
+		phaseErrFCh[i] = new TF1(("phaseErrFCh" + std::to_string(i)).c_str(), phiErrF, 0., 4E4, 3);
 		phaseErrFCh[i]->SetParameters(0.00225, -0.0001, 0.0001);
 		phiErrsCh[i]->Fit(phaseErrFCh[i]);
 		phaseErrFCh[i]->SetNpx(1000);
@@ -591,7 +611,7 @@ void analyze(std::string dataDir)
 	for (; i < 4; ++i)
 	{
 		std::cout << "Fitting phi offset function for channel " << i << std::endl;
-		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 3E5);
+		phiFreqRespCorrectorCh[i] = new TF1(("correctPhiFreqRespCh" + std::to_string(i)).c_str(), "pol1", 0., 4E4);
 		phiFreqRespCorrectorCh[i]->SetParameter(1, expSlopes[i]);
 		phiFreqRespCorrectorCh[i]->SetParameter(0, 0.);
 		phiOffsCh[i]->Fit(phiFreqRespCorrectorCh[i]);
@@ -856,6 +876,276 @@ void analyze(std::string dataDir)
 	// space for cosmetic editing
 
 	// saving EVERYTHING to TFile
+	
+	// post analysis, presentation material making
+	TCanvas* multiPhaseErrGraph = new TCanvas("multiPhaseErrGraph", "Used phase error functions");
+	int compColors[4] {6, 2, 3, 4};
+
+	phaseErrFCh[0]->SetLineColor(6);
+	phaseErrFCh[0]->SetTitle("Funzioni di errore utilizzate - Fase");
+	phaseErrFCh[0]->GetXaxis()->SetTitle("Frequenza (Hz)");
+	phaseErrFCh[0]->GetYaxis()->SetTitle("Errore associato (Rad)");
+	phaseErrFCh[0]->SetNpx(1000);
+	phaseErrFCh[0]->SetLineWidth(1);
+	phaseErrFCh[0]->Draw();
+	phiErrsCh[0]->SetMarkerStyle(3);
+	phiErrsCh[0]->SetMarkerColor(6);
+	phiErrsCh[0]->Draw("SAME PE");
+	for (int i {1}; i < 4; ++i) {
+		phaseErrFCh[i]->SetLineColor(compColors[i]);
+		phaseErrFCh[i]->SetNpx(1000);
+		phaseErrFCh[i]->SetLineWidth(1);
+		phaseErrFCh[i]->Draw("SAME");
+		phiErrsCh[i]->SetMarkerStyle(3);
+		phiErrsCh[i]->SetMarkerColor(compColors[i]);
+		phiErrsCh[i]->Draw("SAME PE");
+	}
+
+	TLegend* phErrGrphLegend = new TLegend(.60, .25, .90, .45, "");
+	phErrGrphLegend->AddEntry(phaseErrFCh[0], "CH0 (Generatore)");
+	phErrGrphLegend->AddEntry(phaseErrFCh[1], "CH1 (Resistenza)");
+	phErrGrphLegend->AddEntry(phaseErrFCh[2], "CH2 (Induttanza)");
+	phErrGrphLegend->AddEntry(phaseErrFCh[3], "CH3 (Condensatore)");
+
+	phErrGrphLegend->Draw();
+
+	multiPhaseErrGraph->Write();
+
+	gStyle->SetLineWidth(1);
+	gStyle->SetLineColor(1);
+
+	TCanvas* multiPhaseOffsCnvs = new TCanvas("multiPhaseOffsCnvs", "Used phase offset functions");
+	phiFreqRespCorrectorCh[0]->SetLineColor(6);
+	phiFreqRespCorrectorCh[0]->SetTitle("Funzioni di offset utilizzate");
+	phiFreqRespCorrectorCh[0]->GetXaxis()->SetTitle("Frequenza (Hz)");
+	phiFreqRespCorrectorCh[0]->GetYaxis()->SetTitle("Offset (Rad)");
+	phiFreqRespCorrectorCh[0]->SetNpx(1000);
+	phiFreqRespCorrectorCh[0]->SetLineWidth(1);
+	phiFreqRespCorrectorCh[0]->SetLineStyle(1);
+	phiFreqRespCorrectorCh[0]->GetYaxis()->SetRangeUser(-0.05, 0.9);
+	phiFreqRespCorrectorCh[0]->SetBit(TF1::kNotDraw);  // Optional, to prevent redraws
+	phiFreqRespCorrectorCh[0]->Draw();
+	phiOffsCh[0]->Draw("SAME PE");
+	phiOffsCh[0]->Write();
+
+	for (i = 1; i < 4; ++i) {
+		phiFreqRespCorrectorCh[i]->SetLineColor(compColors[i]);
+		phiFreqRespCorrectorCh[i]->SetLineWidth(1);
+		phiFreqRespCorrectorCh[i]->SetLineStyle(1);
+		phiFreqRespCorrectorCh[i]->SetNpx(1000);
+		phiFreqRespCorrectorCh[i]->Draw("SAME");
+		phiOffsCh[i]->Write();
+		phiFreqRespCorrectorCh[i]->SetBit(TF1::kNotDraw);  // Optional, to prevent redraws
+		phiOffsCh[i]->Draw("SAME PE");
+	}
+
+	TLegend* phOffsGrphLegend = new TLegend(.60, .25, .90, .45, "");
+	phOffsGrphLegend->AddEntry(phiFreqRespCorrectorCh[0], "CH0 (Generatore)");
+	phOffsGrphLegend->AddEntry(phiFreqRespCorrectorCh[1], "CH1 (Resistenza)");
+	phOffsGrphLegend->AddEntry(phiFreqRespCorrectorCh[2], "CH2 (Induttanza)");
+	phOffsGrphLegend->AddEntry(phiFreqRespCorrectorCh[3], "CH3 (Condensatore)");
+
+	phOffsGrphLegend->Draw();
+
+	multiPhaseOffsCnvs->Write();
+
+	TH2F* voltagesScPl = new TH2F("voltagesScPl", "Misure di voltaggi contemporanee", 20, 2.363, 2.384, 20, 2.366, 2.378);
+	TCanvas* voltagesCnvs = new TCanvas("voltagesCnvs", "Misure di voltaggi contemporanee");
+	for (int i {0}; i < squareWaveGenR1->GetN(); ++i) {
+		voltagesScPl->Fill(squareWaveGenR1->GetPointX(i), squareWaveGenR1->GetPointY(i));
+	}
+	std::cout << "Covariance: " << squareWaveGenR1->GetCovariance() << std::endl;
+	voltagesScPl->Draw("LEGO");
+	TH1D* voltagesSqrWvCh0 = voltagesScPl->ProjectionX();
+	voltagesSqrWvCh0->SetTitle("Misure di differenza di potenziale costante - CH0");
+	voltagesSqrWvCh0->GetXaxis()->SetTitle("DDP (V)");
+	voltagesSqrWvCh0->GetYaxis()->SetTitle("Occorrenze");
+	voltagesSqrWvCh0->SetFillColor(kBlue);
+	TF1* gausV0 = new TF1("gausV0", "gaus", 2.363, 2.384);
+	voltagesSqrWvCh0->Fit(gausV0);
+	voltagesSqrWvCh0->Write();
+	TH1D* voltagesSqrWvCh1 = voltagesScPl->ProjectionY();
+	voltagesSqrWvCh1->SetTitle("Misure di differenza di potenziale costante - CH1");
+	voltagesSqrWvCh1->GetXaxis()->SetTitle("DDP (V)");
+	voltagesSqrWvCh1->GetYaxis()->SetTitle("Occorrenze");
+	TF1* gausV1 = new TF1("gausV0", "gaus", 2.366, 2.378);
+	voltagesSqrWvCh1->Fit(gausV1);
+	voltagesSqrWvCh1->SetFillColor(kBlue);
+	voltagesSqrWvCh1->Write();
+
+	voltagesScPl->Draw();
+	voltagesScPl->Write();
 
 	results->Close();
+}
+
+void makeImages(std::string dataDir) {
+
+	TFile* presMaterial = new TFile("pptMaterial.root", "RECREATE");
+
+	// Section for presentation material
+	
+	Int_t compColors[4] {6, 2, 3, 4};
+	
+	TF1* expAmpFreqRespGenF = new TF1("expAmpFreqRespGenF", "[0]", 0., 4E4);
+	TF1* expAmpFreqRespRF = new TF1("expAmpFreqRespRF", amplitudeFreqRespR, 0., 4E4, 4);
+	TF1* expAmpFreqRespLF = new TF1("expAmpFreqRespLF", amplitudeFreqRespL, 0., 4E4, 4);
+	TF1* expAmpFreqRespCF = new TF1("expAmpFreqRespCF", amplitudeFreqRespC, 0., 4E4, 4);
+
+	TF1* expAmpFreqResps[3] = {expAmpFreqRespRF, expAmpFreqRespLF, expAmpFreqRespCF};
+
+	expAmpFreqRespGenF->SetParameters(VPP/2.);
+	expAmpFreqRespGenF->SetLineColor(compColors[0]);
+	expAmpFreqRespGenF->SetTitle("Risposte in frequenza attese - Ampiezza");
+	expAmpFreqRespGenF->GetXaxis()->SetTitle("Frequenza (Hz)");
+	expAmpFreqRespGenF->GetYaxis()->SetTitle("Ampiezza (V)");
+	expAmpFreqRespGenF->GetYaxis()->SetRangeUser(0., 2.75);
+	for (int i {0}; i < 3; ++i) {
+		expAmpFreqResps[i]->SetParameters(VPP/2., R, L, C);
+		expAmpFreqResps[i]->SetNpx(1000);
+		expAmpFreqResps[i]->SetLineColor(compColors[i + 1]);
+	}
+	TLegend* expAmpLegend = new TLegend(.60, .25, .90, .45, "");
+
+	expAmpLegend->AddEntry(expAmpFreqRespGenF, "Generatore");
+	expAmpLegend->AddEntry(expAmpFreqRespRF, "Resistenza");
+	expAmpLegend->AddEntry(expAmpFreqRespLF, "Induttanza");
+	expAmpLegend->AddEntry(expAmpFreqRespCF, "Condensatore");
+
+	TCanvas* expAmpFreqRespsCvs = new TCanvas("expAmpFreqRespsCvs", "Piscio pene culo");
+
+	expAmpFreqRespGenF->Draw();
+	for (int i {0}; i < 3; ++i) {
+		expAmpFreqResps[i]->Draw("SAME");
+	}
+	expAmpLegend->Draw();
+
+	TF1* expPhaseRespGen = new TF1("expPhaseRespGen", "0", 0., 4E4);
+	TF1* expPhaseRespR = new TF1("expPhaseRespR", phaseFreqResp, 0., 4E4, 4);
+	TF1* expPhaseRespL = new TF1("expPhaseRespL", phaseFreqResp, 0., 4E4, 4);
+	TF1* expPhaseRespC = new TF1("expPhaseRespC", phaseFreqResp, 0., 4E4, 4);
+
+	TF1* expPhaseResps[3] {expPhaseRespR, expPhaseRespL, expPhaseRespC};
+
+	expPhaseRespGen->SetLineColor(compColors[0]);
+	expPhaseRespGen->SetTitle("Risposte in frequenza attese - Fasi");
+	expPhaseRespGen->GetXaxis()->SetTitle("Freqenza (Hz)");
+	expPhaseRespGen->GetYaxis()->SetTitle("Fase (Rad)");
+	expPhaseRespGen->GetYaxis()->SetRangeUser(-M_PI, 4.);
+
+	Double_t expPhaseOffs[3] {0., -M_PI/2., M_PI/2.};
+	for (int i {0}; i < 3; ++i) {
+		expPhaseResps[i]->SetParameters(expPhaseOffs[i], R, L, C);
+		expPhaseResps[i]->SetNpx(1000);
+		expPhaseResps[i]->SetLineColor(compColors[i + 1]);
+	}
+
+	TLegend* expPhaseRespsLgnd = new TLegend(.60, .65, .90, .85, "");
+	expPhaseRespsLgnd->AddEntry(expPhaseRespGen, "Generatore");
+	expPhaseRespsLgnd->AddEntry(expPhaseRespR, "Resistenza");
+	expPhaseRespsLgnd->AddEntry(expPhaseRespL, "Induttanza");
+	expPhaseRespsLgnd->AddEntry(expPhaseRespC, "Condensatore");
+
+	TCanvas* expPhaseRespsCvs = new TCanvas("expPhaseRespsCvs", "Piscio pene cazzo");
+
+	expPhaseRespGen->Draw();
+	for (int i {0}; i < 3; ++i) {
+		expPhaseResps[i]->Draw("SAME");
+	}
+	expPhaseRespsLgnd->Draw();
+
+	// Amplitude error graphs
+	TGraph* ampValsHz[6] = {
+		new TGraph((dataDir + "rawErrors/ampVals4kHzCh3.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/ampVals10kHzCh3.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/ampVals16kHzCh3.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/ampVals25kHzCh3.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/ampVals31kHzCh3.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/ampVals36kHzCh3.txt").c_str()),
+	};
+	TGraph* ampValsGrph = new TGraph();
+	ampValsGrph->SetName("ampValsGrph");
+	for (int i {0}; i < 6; ++i) {
+		for (int j {0}; j < ampValsHz[i]->GetN(); ++j) {
+			ampValsGrph->AddPoint(ampValsHz[i]->GetPointX(j), ampValsHz[i]->GetPointY(j) - ampValsHz[i]->GetMean(2));
+		}
+	}
+	std::cout << "AmpValsGrph pt count: " << ampValsGrph->GetN() << std::endl;
+	ampValsGrph->SetTitle("Scarti misurati per l'ampiezza - Canale 3");
+	ampValsGrph->GetXaxis()->SetTitle("Frequenza (Hz)");
+	ampValsGrph->GetYaxis()->SetTitle("Ampiezza (scarto) (V)");
+	ampValsGrph->SetMarkerStyle(3);
+	ampValsGrph->SetMarkerSize(0.5);
+
+	TH1F* ampValsHisto = new TH1F("ampValsHisto", "Valori misurati - Ampiezza - Canale 3, 25 kHz", 15, 2.4963f, 2.4970f);
+	for (int i {0}; i < ampValsHz[3]->GetN(); ++i) {
+		ampValsHisto->Fill(ampValsHz[3]->GetPointY(i));
+	}
+	std::cout << "Overflows: " << ampValsHisto->GetBinContent(ampValsHisto->GetNbinsX() + 1) << " Underflows: " << ampValsHisto->GetBinContent(0) << std::endl;
+	ampValsHisto->GetXaxis()->SetTitle("Ampiezza (Hz)");
+	ampValsHisto->GetYaxis()->SetTitle("Occorrenze");
+	ampValsHisto->SetFillColor(kBlue);
+	TF1* gaus = new TF1("gaus", "gaus", 2.4963f, 2.4970f);
+	gaus->SetNpx(1000);
+	ampValsHisto->Fit(gaus, "Q");
+
+	TCanvas* ampValsSctrPlt = new TCanvas("ampValsSctrPlt", "Scatter plot - Ampiezza, Canale 3");
+	ampValsGrph->Draw("AP");
+
+	TCanvas* ampValsH = new TCanvas("ampValsH", "culo cacca");
+	ampValsHisto->Draw();
+
+	// Phase error graphs
+	TGraph* phaseValsGrphHz[6] {
+		new TGraph((dataDir + "rawErrors/phaseVals4kHzCh2.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/phaseVals10kHzCh2.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/phaseVals16kHzCh2.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/phaseVals25kHzCh2.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/phaseVals31kHzCh2.txt").c_str()),
+		new TGraph((dataDir + "rawErrors/phaseVals36kHzCh2.txt").c_str()),
+	};
+
+	TGraph* phaseValsGrph = new TGraph();
+	phaseValsGrph->SetName("phaseValsGrph");
+	for (int i {}; i < 6; ++i) {
+		for (int j {}; j < phaseValsGrphHz[i]->GetN(); ++j) {
+			phaseValsGrph->AddPoint(phaseValsGrphHz[i]->GetPointX(j), phaseValsGrphHz[i]->GetPointY(j) - phaseValsGrphHz[i]->GetMean(2));
+		}
+	}
+	phaseValsGrph->SetTitle("Scarti su misure di fase ripetute - Canale 2");
+	phaseValsGrph->GetXaxis()->SetTitle("Frequenza (Hz)");
+	phaseValsGrph->GetYaxis()->SetTitle("Fase (scarto) (Rad)");
+	phaseValsGrph->SetMarkerStyle(3);
+	phaseValsGrph->SetMarkerSize(0.5);
+	
+	TH1F* phaseValsHisto = new TH1F("phaseValsHisto", "Valori misurati - Fase - Canale 2, 16 kHz", 15, 1.395, 1.413);
+	phaseValsHisto->SetFillColor(kBlue);
+	for (int i {0}; i < phaseValsGrphHz[2]->GetN(); ++i) {
+		phaseValsHisto->Fill(phaseValsGrphHz[2]->GetPointY(i));
+	}
+	TF1* moregaus = new TF1("moregaus", "gaus", 1.395, 1.4125);
+	phaseValsHisto->Fit(moregaus, "Q");
+
+	TCanvas* phaseValsScatterPlot = new TCanvas("phaseValsCnvs", "poopoopeepee");
+	phaseValsGrph->Draw("AP");
+
+	TCanvas* phaseValsHistoCnvs = new TCanvas("phaseValsHistoCnvs", "sbor");
+	phaseValsHisto->Draw();
+
+	expAmpFreqRespRF->Write();
+	expAmpFreqRespLF->Write();
+	expAmpFreqRespCF->Write();
+	expAmpFreqRespsCvs->Write();
+	expPhaseRespGen->Write();
+	expPhaseRespR->Write();
+	expPhaseRespL->Write();
+	expPhaseRespC->Write();
+	expPhaseRespsCvs->Write();
+	ampValsGrph->Write();
+	ampValsSctrPlt->Write();
+	ampValsH->Write();
+	ampValsHisto->Write();
+	phaseValsGrph->Write();
+	phaseValsScatterPlot->Write();
+	phaseValsHistoCnvs->Write();
 }
