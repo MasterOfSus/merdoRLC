@@ -958,6 +958,7 @@ void analyze(std::string dataDir)
 	voltagesScPl->Draw("LEGO");
 	TH1D* voltagesSqrWvCh0 = voltagesScPl->ProjectionX();
 	voltagesSqrWvCh0->SetTitle("Misure di differenza di potenziale costante - CH0");
+	voltagesSqrWvCh0->SetName("Risultati del fit");
 	voltagesSqrWvCh0->GetXaxis()->SetTitle("DDP (V)");
 	voltagesSqrWvCh0->GetYaxis()->SetTitle("Occorrenze");
 	voltagesSqrWvCh0->SetFillColor(kBlue);
@@ -966,6 +967,7 @@ void analyze(std::string dataDir)
 	voltagesSqrWvCh0->Write();
 	TH1D* voltagesSqrWvCh1 = voltagesScPl->ProjectionY();
 	voltagesSqrWvCh1->SetTitle("Misure di differenza di potenziale costante - CH1");
+	voltagesSqrWvCh1->SetName("Risultati del fit");
 	voltagesSqrWvCh1->GetXaxis()->SetTitle("DDP (V)");
 	voltagesSqrWvCh1->GetYaxis()->SetTitle("Occorrenze");
 	TF1* gausV1 = new TF1("gausV0", "gaus", 2.366, 2.378);
@@ -1087,9 +1089,9 @@ void makeImages(std::string dataDir) {
 	ampValsHisto->SetFillColor(kBlue);
 	TF1* gaus = new TF1("gaus", "gaus", 2.4963f, 2.4970f);
 	gaus->SetNpx(1000);
+	TCanvas* ampValsSctrPlt = new TCanvas("ampValsSctrPlt", "Scatter plot - Ampiezza, Canale 3");
 	ampValsHisto->Fit(gaus, "Q");
 
-	TCanvas* ampValsSctrPlt = new TCanvas("ampValsSctrPlt", "Scatter plot - Ampiezza, Canale 3");
 	ampValsGrph->Draw("AP");
 
 	TCanvas* ampValsH = new TCanvas("ampValsH", "culo cacca");
