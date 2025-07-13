@@ -336,6 +336,24 @@ Double_t genAmpFreqResp(Double_t* freq, Double_t* pars) {
   return pars[0] - amplitudeFreqRespR(freq, parss);
 }
 
+Double_t altAmplitudeFreqRespL(Double_t* freq, Double_t* pars) {
+	// [0] is LR resistance
+	// [1] is V0/2.
+	// [2] is R 
+	// [3] is L 
+	// [4] is C
+	Double_t parss[4] {
+		pars[1], pars[2], pars[3], pars[4]
+	};
+	Double_t parsR[4] {
+		pars[1]*pars[0]/pars[2],
+		parss[1],
+		parss[2],
+		parss[3]
+	};
+	return amplitudeFreqRespL(freq, parss) + amplitudeFreqRespR(freq, parsR);
+}
+
 void analyze(std::string dataDir)
 {
 
@@ -696,6 +714,12 @@ void analyze(std::string dataDir)
 	TF1 *ampFreqRespLF = new TF1("ampFreqRespLF", amplitudeFreqRespL, 1E3, 4E4, 4);
 	ampFreqRespLF->SetNpx(1000);
 	ampFreqRespLF->SetParameters(VPP / 2., R, L, C);
+	TF1 *altAmpFreqRespLF = new TF1("altAmpFreqRespLF", altAmplitudeFreqRespL, 1E3, 4E4, 5);
+	altAmpFreqRespLF->SetNpx(1000);
+	altAmpFreqRespLF->SetParameters(LR, VPP/2., R, L, C);
+	for (int i {0}; i < 100; ++i) {
+		std::cout << altAmpFreqRespLF->Eval(390 * i + 1E3) << " ";
+	}
 	TF1 *ampFreqRespCF = new TF1("ampFreqRespCF", amplitudeFreqRespC, 1E3, 4E4, 4);
 	ampFreqRespCF->SetNpx(1000);
 	ampFreqRespCF->SetParameters(VPP / 2., R, L, C);
@@ -750,6 +774,9 @@ void analyze(std::string dataDir)
 	std::cout << "L amplitude frequency response fit:\n";
 	ampFreqRespL->Fit(ampFreqRespLF, "NR");
 	ampFreqRespLF->Write();
+	std::cout << "Alt L amplitude frequency response fit:\n";
+	ampFreqRespL->Fit(altAmpFreqRespLF, "NR");
+	altAmpFreqRespLF->Write();
 	std::cout << "C amplitude frequency response fit:\n";
 	ampFreqRespC->Fit(ampFreqRespCF, "NR");
 	ampFreqRespCF->Write();
@@ -797,6 +824,10 @@ void analyze(std::string dataDir)
 	ampFreqRespLF->SetTitle("L Fit");
 	ampFreqRespLF->SetNpx(10000);
 	ampFreqRespLF->Draw("SAME");
+	altAmpFreqRespLF->SetLineColor(5);
+	altAmpFreqRespLF->SetTitle("Alt L Fit");
+	altAmpFreqRespLF->SetNpx(1000);
+	altAmpFreqRespLF->Draw("SAME");
 	// ampFreqRespCnvs->cd(3);
 	ampFreqRespC->Draw("SAME");
 	ampFreqRespCF->SetLineColor(4);
@@ -1035,7 +1066,7 @@ void makeImages(std::string dataDir) {
 	expPhaseRespGen->GetYaxis()->SetTitle("Fase (Rad)");
 	expPhaseRespGen->GetYaxis()->SetRangeUser(-M_PI, 4.);
 
-	Double_t expPhaseOffs[3] {0., -M_PI/2., M_PI/2.};
+	Double_t expPhaseOffs[3] {M_PI/2., -M_PI/2., 0.};
 	for (int i {0}; i < 3; ++i) {
 		expPhaseResps[i]->SetParameters(expPhaseOffs[i], R, L, C);
 		expPhaseResps[i]->SetNpx(1000);
