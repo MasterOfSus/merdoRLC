@@ -1066,7 +1066,7 @@ void makeImages(std::string dataDir) {
 	expPhaseRespGen->GetYaxis()->SetTitle("Fase (Rad)");
 	expPhaseRespGen->GetYaxis()->SetRangeUser(-M_PI, 4.);
 
-	Double_t expPhaseOffs[3] {M_PI/2., -M_PI/2., 0.};
+	Double_t expPhaseOffs[3] {0., M_PI/2., -M_PI/2.};
 	for (int i {0}; i < 3; ++i) {
 		expPhaseResps[i]->SetParameters(expPhaseOffs[i], R, L, C);
 		expPhaseResps[i]->SetNpx(1000);
